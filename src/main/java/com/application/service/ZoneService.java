@@ -346,7 +346,6 @@ public class ZoneService {
         } else {
             // Group by amount and recalculate for each amount the sender holds
             senderHoldings.stream()
-                    .filter(d -> d.getAmount() != null)
                     .collect(java.util.stream.Collectors.groupingBy(Distribution::getAmount))
                     .forEach((amount, dists) -> {
                         // Use the type from the first distribution with this amount
@@ -664,7 +663,7 @@ public class ZoneService {
        
         // 2. Filter by Amount
         List<Distribution> received = allReceived.stream()
-                .filter(d -> d.getAmount() != null && Math.abs(d.getAmount() - amount) < 0.01)
+                .filter(d -> Math.abs(d.getAmount() - amount) < 0.01)
                 .sorted((d1, d2) -> Long.compare(d1.getAppStartNo(), d2.getAppStartNo()))
                 .toList();
  
@@ -675,7 +674,7 @@ public class ZoneService {
        
         // 4. Filter given away by amount
         List<Distribution> givenAway = allGivenAway.stream()
-                .filter(d -> d.getAmount() != null && Math.abs(d.getAmount() - amount) < 0.01)
+                .filter(d -> Math.abs(d.getAmount() - amount) < 0.01)
                 .sorted((d1, d2) -> Long.compare(d1.getAppStartNo(), d2.getAppStartNo()))
                 .toList();
  
@@ -871,7 +870,7 @@ public class ZoneService {
     private void validateSenderHasAvailableRange(@NonNull DistributionRequestDTO request) {
         int senderId = request.getCreatedBy();
         int academicYearId = request.getAcademicYearId();
-        Float amount = request.getApplication_Amount();
+        Integer amount = request.getApplication_Amount();
         int requestedStart = request.getAppStartNo();
         int requestedEnd = request.getAppEndNo();
         
