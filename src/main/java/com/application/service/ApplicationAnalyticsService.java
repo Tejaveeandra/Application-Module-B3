@@ -537,9 +537,13 @@ MetricsAggregateDTO totalMetrics = curr; // instead of summing every year
         metrics.add(createMetricWithPercentage("Confirmed",
             total.appConfirmed(),
             confirmedPercentCurrent, confirmedPercentPrevious));
+        // Calculate Available as Total - Issued (not from appAvailable field)
+        long availableTotal = Math.max(0, total.totalApp() - total.appIssued());
+        long availableCurrent = Math.max(0, current.totalApp() - current.appIssued());
+        long availablePrevious = Math.max(0, previous.totalApp() - previous.appIssued());
         metrics.add(createMetric("Available",
-            total.appAvailable(),
-            current.appAvailable(), previous.appAvailable()));
+            availableTotal,
+            availableCurrent, availablePrevious));
         long validIssuedCurrent = Math.max(0, current.appIssued());
         long validIssuedPrevious = Math.max(0, previous.appIssued());
         double issuedPercentCurrent = calculatePercentage(validIssuedCurrent, current.totalApp());

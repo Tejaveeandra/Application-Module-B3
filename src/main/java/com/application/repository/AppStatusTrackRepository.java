@@ -138,11 +138,12 @@ public interface AppStatusTrackRepository extends JpaRepository<AppStatusTrack, 
             "COALESCE(SUM(ast.totalApp), 0), " +
             "COALESCE(SUM(ast.appSold), 0), " +
             "COALESCE(SUM(ast.appConfirmed), 0), " +
-            "COALESCE(SUM(CASE WHEN ast.issuedByType.appIssuedId != 4 THEN ast.appAvailable ELSE 0 END), 0), " +
+            "COALESCE(SUM(CASE WHEN (ibt.appIssuedId IS NULL OR ibt.appIssuedId != 4) THEN ast.appAvailable ELSE 0 END), 0), " +
             "COALESCE(SUM(ast.appUnavailable), 0), " +
             "COALESCE(SUM(ast.appDamaged), 0), " +
-            "COALESCE(SUM(CASE WHEN ast.issuedByType.appIssuedId = 4 THEN ast.totalApp ELSE 0 END), 0)) " +
+            "COALESCE(SUM(CASE WHEN ibt.appIssuedId = 4 THEN ast.totalApp ELSE 0 END), 0)) " +
             "FROM AppStatusTrack ast " +
+            "LEFT JOIN ast.issuedByType ibt " +
             "WHERE ast.zone.id = :zoneId AND ast.academicYear.acdcYearId = :acdcYearId")
  
     Optional<MetricsAggregateDTO> getMetricsByZoneAndYear( // <-- Use new DTO
@@ -172,10 +173,11 @@ public interface AppStatusTrackRepository extends JpaRepository<AppStatusTrack, 
             + "COALESCE(SUM(ast.totalApp), 0), "
             + "COALESCE(SUM(ast.appSold), 0), "
             + "COALESCE(SUM(ast.appConfirmed), 0), "
-            + "COALESCE(SUM(CASE WHEN ast.issuedByType.appIssuedId != 4 THEN ast.appAvailable ELSE 0 END), 0), "
+            + "COALESCE(SUM(CASE WHEN (ibt.appIssuedId IS NULL OR ibt.appIssuedId != 4) THEN ast.appAvailable ELSE 0 END), 0), "
             + "COALESCE(SUM(ast.appUnavailable), 0), "
             + "COALESCE(SUM(ast.appDamaged), 0), "
-            + "COALESCE(SUM(CASE WHEN ast.issuedByType.appIssuedId = 4 THEN ast.totalApp ELSE 0 END), 0)) FROM AppStatusTrack ast "
+            + "COALESCE(SUM(CASE WHEN ibt.appIssuedId = 4 THEN ast.totalApp ELSE 0 END), 0)) FROM AppStatusTrack ast "
+            + "LEFT JOIN ast.issuedByType ibt "
             + "WHERE ast.employee.id = :empId AND ast.academicYear.acdcYearId = :acdcYearId")
  
     Optional<MetricsAggregateDTO> getMetricsByEmployeeAndYear(@Param("empId") Integer empId,
@@ -206,10 +208,11 @@ public interface AppStatusTrackRepository extends JpaRepository<AppStatusTrack, 
             "COALESCE(SUM(ast.totalApp), 0), " +
             "COALESCE(SUM(ast.appSold), 0), " +
             "COALESCE(SUM(ast.appConfirmed), 0), " +
-            "COALESCE(SUM(CASE WHEN ast.issuedByType.appIssuedId != 4 THEN ast.appAvailable ELSE 0 END), 0), " +
+            "COALESCE(SUM(CASE WHEN (ibt.appIssuedId IS NULL OR ibt.appIssuedId != 4) THEN ast.appAvailable ELSE 0 END), 0), " +
             "COALESCE(SUM(ast.appUnavailable), 0), " +
             "COALESCE(SUM(ast.appDamaged), 0), " +
-            "COALESCE(SUM(CASE WHEN ast.issuedByType.appIssuedId = 4 THEN ast.totalApp ELSE 0 END), 0)) FROM AppStatusTrack ast "
+            "COALESCE(SUM(CASE WHEN ibt.appIssuedId = 4 THEN ast.totalApp ELSE 0 END), 0)) FROM AppStatusTrack ast "
+            + "LEFT JOIN ast.issuedByType ibt "
             + "WHERE ast.campus.id = :campusId AND ast.academicYear.acdcYearId = :acdcYearId")
  
     Optional<MetricsAggregateDTO> getMetricsByCampusAndYear( // <-- Use new DTO
@@ -234,10 +237,11 @@ public interface AppStatusTrackRepository extends JpaRepository<AppStatusTrack, 
             "COALESCE(SUM(ast.totalApp), 0), " +
             "COALESCE(SUM(ast.appSold), 0), " +
             "COALESCE(SUM(ast.appConfirmed), 0), " +
-            "COALESCE(SUM(CASE WHEN ast.issuedByType.appIssuedId != 4 THEN ast.appAvailable ELSE 0 END), 0), " +
+            "COALESCE(SUM(CASE WHEN (ibt.appIssuedId IS NULL OR ibt.appIssuedId != 4) THEN ast.appAvailable ELSE 0 END), 0), " +
             "COALESCE(SUM(ast.appUnavailable), 0), " +
             "COALESCE(SUM(ast.appDamaged), 0), " +
-            "COALESCE(SUM(CASE WHEN ast.issuedByType.appIssuedId = 4 THEN ast.totalApp ELSE 0 END), 0)) FROM AppStatusTrack ast " +
+            "COALESCE(SUM(CASE WHEN ibt.appIssuedId = 4 THEN ast.totalApp ELSE 0 END), 0)) FROM AppStatusTrack ast " +
+            "LEFT JOIN ast.issuedByType ibt " +
             "WHERE ast.campus.id IN :campusIds AND ast.academicYear.acdcYearId = :acdcYearId")
  
     Optional<MetricsAggregateDTO> getMetricsByCampusListAndYear(@Param("campusIds") List<Integer> campusIds,
@@ -256,10 +260,11 @@ public interface AppStatusTrackRepository extends JpaRepository<AppStatusTrack, 
             "COALESCE(SUM(ast.totalApp), 0), " +
             "COALESCE(SUM(ast.appSold), 0), " +
             "COALESCE(SUM(ast.appConfirmed), 0), " +
-            "COALESCE(SUM(CASE WHEN ast.issuedByType.appIssuedId != 4 THEN ast.appAvailable ELSE 0 END), 0), " +
+            "COALESCE(SUM(CASE WHEN (ibt.appIssuedId IS NULL OR ibt.appIssuedId != 4) THEN ast.appAvailable ELSE 0 END), 0), " +
             "COALESCE(SUM(ast.appUnavailable), 0), " +
             "COALESCE(SUM(ast.appDamaged), 0), " +
-            "COALESCE(SUM(CASE WHEN ast.issuedByType.appIssuedId = 4 THEN ast.totalApp ELSE 0 END), 0)) FROM AppStatusTrack ast " +
+            "COALESCE(SUM(CASE WHEN ibt.appIssuedId = 4 THEN ast.totalApp ELSE 0 END), 0)) FROM AppStatusTrack ast " +
+            "LEFT JOIN ast.issuedByType ibt " +
             "WHERE ast.employee.id IN :empIds AND ast.academicYear.acdcYearId = :acdcYearId")
  
     Optional<MetricsAggregateDTO> getMetricsByEmployeeListAndYear(@Param("empIds") List<Integer> empIds,
@@ -318,10 +323,15 @@ public interface AppStatusTrackRepository extends JpaRepository<AppStatusTrack, 
    
     // New Method in AppStatusTrackRepository
     @Query("SELECT NEW com.application.dto.MetricsAggregateDTO("
-        + "COALESCE(SUM(ast.totalApp), 0), COALESCE(SUM(ast.appSold), 0), COALESCE(SUM(ast.appConfirmed), 0), "
-        + "COALESCE(SUM(ast.appAvailable), 0), COALESCE(SUM(ast.appUnavailable), 0), "
-        + "COALESCE(SUM(ast.appDamaged), 0), COALESCE(SUM(ast.appIssued), 0)) "
-        + "FROM AppStatusTrack ast") // <--- No WHERE clause
+        + "COALESCE(SUM(ast.totalApp), 0), "
+        + "COALESCE(SUM(ast.appSold), 0), "
+        + "COALESCE(SUM(ast.appConfirmed), 0), "
+        + "COALESCE(SUM(CASE WHEN (ibt.appIssuedId IS NULL OR ibt.appIssuedId != 4) THEN ast.appAvailable ELSE 0 END), 0), "
+        + "COALESCE(SUM(ast.appUnavailable), 0), "
+        + "COALESCE(SUM(ast.appDamaged), 0), "
+        + "COALESCE(SUM(CASE WHEN ibt.appIssuedId = 4 THEN ast.totalApp ELSE 0 END), 0)) "
+        + "FROM AppStatusTrack ast "
+        + "LEFT JOIN ast.issuedByType ibt") // <--- No WHERE clause
     Optional<MetricsAggregateDTO> getAdminMetricsAllTime();
    
     // New Method in AppStatusTrackRepository
@@ -334,11 +344,13 @@ public interface AppStatusTrackRepository extends JpaRepository<AppStatusTrack, 
                  "COALESCE(SUM(a.totalApp), 0), " +
                  "COALESCE(SUM(a.appSold), 0), " +
                  "COALESCE(SUM(a.appConfirmed), 0), " +
-                 "COALESCE(SUM(CASE WHEN a.issuedByType.appIssuedId != 4 THEN a.appAvailable ELSE 0 END), 0), " +
+                 "COALESCE(SUM(CASE WHEN (ibt.appIssuedId IS NULL OR ibt.appIssuedId != 4) THEN a.appAvailable ELSE 0 END), 0), " +
                  "COALESCE(SUM(a.appUnavailable), 0), " +
                  "COALESCE(SUM(a.appDamaged), 0), " +
-                 "COALESCE(SUM(CASE WHEN a.issuedByType.appIssuedId = 4 THEN a.totalApp ELSE 0 END), 0)) " +
-                 "FROM AppStatusTrack a WHERE a.campus.id = :campusId AND a.academicYear.id = :yearId")
+                 "COALESCE(SUM(CASE WHEN ibt.appIssuedId = 4 THEN a.totalApp ELSE 0 END), 0)) " +
+                 "FROM AppStatusTrack a " +
+                 "LEFT JOIN a.issuedByType ibt " +
+                 "WHERE a.campus.id = :campusId AND a.academicYear.id = :yearId")
          Optional<MetricsAggregateDTO> getMetricsByCampusIdAndYear(
                  @Param("campusId") Integer campusId,
                  @Param("yearId") Integer yearId
@@ -355,11 +367,13 @@ public interface AppStatusTrackRepository extends JpaRepository<AppStatusTrack, 
                  "COALESCE(SUM(a.totalApp), 0), " +
                  "COALESCE(SUM(a.appSold), 0), " +
                  "COALESCE(SUM(a.appConfirmed), 0), " +
-                 "COALESCE(SUM(CASE WHEN a.issuedByType.appIssuedId != 4 THEN a.appAvailable ELSE 0 END), 0), " +
+                 "COALESCE(SUM(CASE WHEN (ibt.appIssuedId IS NULL OR ibt.appIssuedId != 4) THEN a.appAvailable ELSE 0 END), 0), " +
                  "COALESCE(SUM(a.appUnavailable), 0), " +
                  "COALESCE(SUM(a.appDamaged), 0), " +
-                 "COALESCE(SUM(CASE WHEN a.issuedByType.appIssuedId = 4 THEN a.totalApp ELSE 0 END), 0)) " +
-                 "FROM AppStatusTrack a WHERE a.zone.id = :zoneId AND a.academicYear.id = :yearId AND a.isActive = 1")
+                 "COALESCE(SUM(CASE WHEN ibt.appIssuedId = 4 THEN a.totalApp ELSE 0 END), 0)) " +
+                 "FROM AppStatusTrack a " +
+                 "LEFT JOIN a.issuedByType ibt " +
+                 "WHERE a.zone.id = :zoneId AND a.academicYear.id = :yearId AND a.isActive = 1")
          Optional<MetricsAggregateDTO> getMetricsByZoneIdAndYear(
                  @Param("zoneId") Integer zoneId,
                  @Param("yearId") Integer yearId
@@ -395,12 +409,13 @@ public interface AppStatusTrackRepository extends JpaRepository<AppStatusTrack, 
              + "COALESCE(SUM(ast.totalApp), 0), "
              + "COALESCE(SUM(ast.appSold), 0), "
              + "COALESCE(SUM(ast.appConfirmed), 0), "
-             + "COALESCE(SUM(CASE WHEN ast.issuedByType.appIssuedId != 4 THEN ast.appAvailable ELSE 0 END), 0), "
+             + "COALESCE(SUM(CASE WHEN (ibt.appIssuedId IS NULL OR ibt.appIssuedId != 4) THEN ast.appAvailable ELSE 0 END), 0), "
              + "COALESCE(SUM(ast.appUnavailable), 0), "
              + "COALESCE(SUM(ast.appDamaged), 0), "
-             + "COALESCE(SUM(CASE WHEN ast.issuedByType.appIssuedId = 4 THEN ast.totalApp ELSE 0 END), 0)) "
+             + "COALESCE(SUM(CASE WHEN ibt.appIssuedId = 4 THEN ast.totalApp ELSE 0 END), 0)) "
              + "FROM AppStatusTrack ast "
-             + "WHERE ast.employee.id = :empId " // Check: Is 'empId' the actual PK field name on the Employee entity?
+             + "LEFT JOIN ast.issuedByType ibt "
+             + "WHERE ast.employee.id = :empId "
              + "AND ast.academicYear.acdcYearId = :acdcYearId") // Check: This was the fix from the last error
          Optional<MetricsAggregateDTO> getMetricsByEmployeeAndYear(
              @Param("empId") Long empId,
@@ -425,11 +440,13 @@ public interface AppStatusTrackRepository extends JpaRepository<AppStatusTrack, 
                     "COALESCE(SUM(a.totalApp), 0), " +
                     "COALESCE(SUM(a.appSold), 0), " +
                     "COALESCE(SUM(a.appConfirmed), 0), " +
-                    "COALESCE(SUM(CASE WHEN a.issuedByType.appIssuedId != 4 THEN a.appAvailable ELSE 0 END), 0), " +
+                    "COALESCE(SUM(CASE WHEN (ibt.appIssuedId IS NULL OR ibt.appIssuedId != 4) THEN a.appAvailable ELSE 0 END), 0), " +
                     "COALESCE(SUM(a.appUnavailable), 0), " +
                     "COALESCE(SUM(a.appDamaged), 0), " +
-                    "COALESCE(SUM(CASE WHEN a.issuedByType.appIssuedId = 4 THEN a.totalApp ELSE 0 END), 0)) " +
-                    "FROM AppStatusTrack a WHERE a.campus.id IN :campusIds AND a.academicYear.id = :yearId AND a.isActive = 1")
+                    "COALESCE(SUM(CASE WHEN ibt.appIssuedId = 4 THEN a.totalApp ELSE 0 END), 0)) " +
+                    "FROM AppStatusTrack a " +
+                    "LEFT JOIN a.issuedByType ibt " +
+                    "WHERE a.campus.id IN :campusIds AND a.academicYear.id = :yearId AND a.isActive = 1")
             Optional<MetricsAggregateDTO> getMetricsByCampusIdsAndYear(
                     @Param("campusIds") List<Integer> campusIds,
                     @Param("yearId") Integer yearId
