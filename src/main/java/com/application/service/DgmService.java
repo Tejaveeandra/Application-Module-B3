@@ -515,7 +515,7 @@ public List<AppSeriesDTO> getActiveSeriesForReceiver(int receiverId, int academi
                             // Check if the series range falls within this distribution
                             // Series: dto.startNo to dto.endNo
                             // Distribution: dist.appStartNo to dist.appEndNo
-                        	if (dto.getStartNo() >= dist.getAppStartNo() && dto.getEndNo() <= dist.getAppEndNo() && dist.getIsActive() == 1) {
+                            if (dto.getStartNo() >= dist.getAppStartNo() && dto.getEndNo() <= dist.getAppEndNo() && dist.getIsActive() == 1) {
                                 containingDists.add(dist);
                                 System.out.println("DEBUG: Series " + dto.getStartNo() + "-" + dto.getEndNo() + 
                                         " is contained in Distribution " + dist.getAppStartNo() + "-" + dist.getAppEndNo() + 
@@ -1290,8 +1290,8 @@ private List<int[]> calculateRemainingRanges(int start, int end, List<int[]> giv
         if (amount == null) {
             throw new RuntimeException("Validation Failed: Application Amount cannot be null.");
         }
-        if (amount <= 0) {
-            throw new RuntimeException("Validation Failed: Application Amount must be greater than 0. Provided: " + amount);
+        if (amount < 0) {
+            throw new RuntimeException("Validation Failed: Application Amount cannot be negative. Provided: " + amount);
         }
         
         // Validate range is valid

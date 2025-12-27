@@ -346,6 +346,7 @@ public class ZoneService {
         } else {
             // Group by amount and recalculate for each amount the sender holds
             senderHoldings.stream()
+                    .filter(d -> d.getAmount() != null)
                     .collect(java.util.stream.Collectors.groupingBy(Distribution::getAmount))
                     .forEach((amount, dists) -> {
                         // Use the type from the first distribution with this amount
@@ -663,7 +664,7 @@ public class ZoneService {
        
         // 2. Filter by Amount
         List<Distribution> received = allReceived.stream()
-                .filter(d -> Math.abs(d.getAmount() - amount) < 0.01)
+                .filter(d -> d.getAmount() != null && Math.abs(d.getAmount() - amount) < 0.01)
                 .sorted((d1, d2) -> Long.compare(d1.getAppStartNo(), d2.getAppStartNo()))
                 .toList();
  
@@ -870,7 +871,7 @@ public class ZoneService {
     private void validateSenderHasAvailableRange(@NonNull DistributionRequestDTO request) {
         int senderId = request.getCreatedBy();
         int academicYearId = request.getAcademicYearId();
-        Integer amount = request.getApplication_Amount();
+     Float amount = request.getApplication_Amount();
         int requestedStart = request.getAppStartNo();
         int requestedEnd = request.getAppEndNo();
         
@@ -878,8 +879,8 @@ public class ZoneService {
         if (amount == null) {
             throw new RuntimeException("Validation Failed: Application Amount cannot be null.");
         }
-        if (amount <= 0) {
-            throw new RuntimeException("Validation Failed: Application Amount must be greater than 0. Provided: " + amount);
+        if (amount < 0) {
+            throw new RuntimeException("Validation Failed: Application Amount cannot be negative. Provided: " + amount);
         }
         
         // Validate range is valid

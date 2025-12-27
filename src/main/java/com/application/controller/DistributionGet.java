@@ -310,7 +310,7 @@ public class DistributionGet {
          
          @GetMapping("/campuses/category/{cityId}")
             public ResponseEntity<List<GenericDropdownDTO>> getCampuses(
-                    @RequestParam(required = false) String category,
+                    @RequestParam(required = true) String category,
                     @PathVariable Integer cityId) {
    
                 return ResponseEntity.ok(

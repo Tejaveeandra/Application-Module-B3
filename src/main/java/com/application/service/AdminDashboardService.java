@@ -285,8 +285,15 @@ public class AdminDashboardService {
                         }
                         break;
                     case "unavailable":
-                        if (normalizedStatus.equals("unavailable")) {
+                        // Handle variations: "unavailable", "un available", "un_available"
+                        // Remove all spaces, underscores, and hyphens for flexible matching
+                        String normalizedStatusNoSpaceUnavailable = normalizedStatus.replaceAll("[\\s_\\-]+", "");
+                        if (normalizedStatus.equals("unavailable") ||
+                            normalizedStatus.equals("un available") ||
+                            normalizedStatus.equals("un_available") ||
+                            normalizedStatusNoSpaceUnavailable.equals("unavailable")) {
                             totalCount++;
+                            System.out.println("DEBUG: Application " + app.getNum() + " counted as UNAVAILABLE (original: " + status + ")");
                         }
                         break;
                     case "with pro":

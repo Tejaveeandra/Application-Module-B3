@@ -60,24 +60,38 @@ public class UserAppSoldService {
 		}).collect(Collectors.toList());
 	}
 
-	public List<RateResponseDTO> getAllRateData() {
-		System.out.println("--- LOG: STARTING NATIVE RATE CALCULATION ---");
+	public List<RateResponseDTO> getAllRateData(String campusCategory) {
+		System.out.println("--- LOG: STARTING NATIVE RATE CALCULATION" + (campusCategory != null ? " WITH CATEGORY: " + campusCategory : "") + " ---");
 		List<RateResponseDTO> responseList = new ArrayList<>();
 
+		List<Object[]> zoneRaw;
+		List<Object[]> dgmRaw;
+		List<Object[]> campusRaw;
+
+		if (campusCategory != null && !campusCategory.trim().isEmpty()) {
+			String category = campusCategory.trim();
+			// Use category filtered queries
+			zoneRaw = userAppSoldRepository.findZonePerformanceNativeByCategory(category);
+			dgmRaw = userAppSoldRepository.findDgmPerformanceNativeByCategory(category);
+			campusRaw = userAppSoldRepository.findCampusPerformanceNativeByCategory(category);
+		} else {
+			// Use standard queries
+			zoneRaw = userAppSoldRepository.findZonePerformanceNative();
+			dgmRaw = userAppSoldRepository.findDgmPerformanceNative();
+			campusRaw = userAppSoldRepository.findCampusPerformanceNative();
+		}
+
 		// 1. ZONES
-		List<Object[]> zoneRaw = userAppSoldRepository.findZonePerformanceNative();
 		List<PerformanceDTO> zoneData = mapToPerformanceDTO(zoneRaw);
 		responseList.add(processAnalytics("zone", "DISTRIBUTE_ZONE", "Application Drop Rate Zone Wise",
 				"Top Rated Zones", zoneData));
 
 		// 2. DGMS
-		List<Object[]> dgmRaw = userAppSoldRepository.findDgmPerformanceNative();
 		List<PerformanceDTO> dgmData = mapToPerformanceDTO(dgmRaw);
 		responseList.add(
 				processAnalytics("dgm", "DISTRIBUTE_DGM", "Application Drop Rate DGM Wise", "Top Rated DGMs", dgmData));
 
 		// 3. CAMPUSES
-		List<Object[]> campusRaw = userAppSoldRepository.findCampusPerformanceNative();
 		List<PerformanceDTO> campusData = mapToPerformanceDTO(campusRaw);
 		responseList.add(processAnalytics("campus", "DISTRIBUTE_CAMPUS", "Application Drop Rate Campus Wise",
 				"Top Rated Campuses", campusData));

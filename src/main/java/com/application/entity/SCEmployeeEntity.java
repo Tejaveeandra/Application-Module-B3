@@ -34,6 +34,9 @@ public class SCEmployeeEntity {
     // --- NEW FIELDS ---
 	@Column(name = "zone_id")
 	private int zoneId;
+
+	@Column(name="cmps_category")
+	private String cmpsCategory;
  
 	@Column(name = "zone_name")
 	private String zoneName;

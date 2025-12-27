@@ -1057,8 +1057,8 @@ public List<GenericDropdownDTO> fetchCampusesByCityAndCategory(String category, 
         if (amount == null) {
             throw new RuntimeException("Validation Failed: Application Amount cannot be null.");
         }
-        if (amount <= 0) {
-            throw new RuntimeException("Validation Failed: Application Amount must be greater than 0. Provided: " + amount);
+        if (amount < 0) {
+            throw new RuntimeException("Validation Failed: Application Amount cannot be negative. Provided: " + amount);
         }
         
         // Validate range is valid

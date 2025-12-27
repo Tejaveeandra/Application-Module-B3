@@ -178,6 +178,44 @@ public interface UserAppSoldRepository extends JpaRepository<UserAppSold, Long> 
             + "WHERE s.is_active = 1 " + "GROUP BY c.cmps_name", nativeQuery = true)
     List<Object[]> findCampusPerformanceNative();
    
+    // --- NEW: Category Filtered Native Queries ---
+
+    // 1. ZONES (Filtered by Category)
+    @Query(value = "SELECT z.zone_name, "
+            + "(CAST(SUM(s.sold) AS DECIMAL) / NULLIF(SUM(s.total_app_count), 0)) * 100.0 AS performance "
+            + "FROM sce_application.sce_user_app_sold s "
+            + "JOIN sce_locations.sce_zone z ON s.zone_id = z.zone_id "
+            + "JOIN sce_admin.sce_emp_view e ON s.emp_id = e.emp_id "
+            + "WHERE s.is_active = 1 "
+            + "AND LOWER(e.cmps_category) = LOWER(:category) "
+            + "GROUP BY z.zone_name", nativeQuery = true)
+    List<Object[]> findZonePerformanceNativeByCategory(@Param("category") String category);
+
+    // 2. DGMS (Filtered by Category)
+    @Query(value = """
+          SELECT CONCAT(e.first_name, ' ', e.last_name) AS dgm_name,
+                 (CAST(SUM(s.sold) AS DECIMAL) / NULLIF(SUM(s.total_app_count), 0)) * 100.0 AS performance
+          FROM sce_application.sce_user_app_sold s
+          JOIN sce_employee.sce_emp e ON s.emp_id = e.emp_id
+          JOIN sce_admin.sce_emp_view ev ON s.emp_id = ev.emp_id
+          WHERE s.is_active = 1
+            AND s.entity_id = 3
+            AND LOWER(ev.cmps_category) = LOWER(:category)
+          GROUP BY e.first_name, e.last_name
+      """, nativeQuery = true)
+    List<Object[]> findDgmPerformanceNativeByCategory(@Param("category") String category);
+
+    // 3. CAMPUSES (Filtered by Category)
+    @Query(value = "SELECT c.cmps_name, "
+            + "(CAST(SUM(s.sold) AS DECIMAL) / NULLIF(SUM(s.total_app_count), 0)) * 100.0 AS performance "
+            + "FROM sce_application.sce_user_app_sold s "
+            + "JOIN sce_campus.sce_cmps c ON s.cmps_id = c.cmps_id "
+            + "JOIN sce_admin.sce_emp_view e ON s.emp_id = e.emp_id "
+            + "WHERE s.is_active = 1 "
+            + "AND LOWER(e.cmps_category) = LOWER(:category) "
+            + "GROUP BY c.cmps_name", nativeQuery = true)
+    List<Object[]> findCampusPerformanceNativeByCategory(@Param("category") String category);
+   
     // --- Flexible Graph Data Methods (Year-wise with optional filters) ---
    
     @Query("""

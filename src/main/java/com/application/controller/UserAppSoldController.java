@@ -7,6 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.application.dto.RateResponseDTO;
@@ -20,8 +21,9 @@ public class UserAppSoldController {
 	private UserAppSoldService userAppSoldService;
 	 
 	 @GetMapping("/top_drop_rate")//used
-	    public ResponseEntity<List<RateResponseDTO>> getAllRateData() {
-	        return ResponseEntity.ok(userAppSoldService.getAllRateData());
+	    public ResponseEntity<List<RateResponseDTO>> getAllRateData(
+	            @RequestParam(required = false) String campusCategory) {
+	        return ResponseEntity.ok(userAppSoldService.getAllRateData(campusCategory));
 	    }
 	 
 //	 @GetMapping("/zonal_accountant/{empId}")
