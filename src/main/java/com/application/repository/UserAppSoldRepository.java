@@ -22,7 +22,7 @@ public interface UserAppSoldRepository extends JpaRepository<UserAppSold, Long> 
     @Query("""
                 SELECT
                     a.acdcYearId,
-                    SUM(a.totalAppCount),
+                    COALESCE(SUM(a.totalAppCount - a.appAvlbCount), 0),
                     SUM(a.sold)
                 FROM UserAppSold a
                 WHERE a.isActive = 1
@@ -221,7 +221,7 @@ public interface UserAppSoldRepository extends JpaRepository<UserAppSold, Long> 
     @Query("""
             SELECT
                 a.acdcYearId,
-                COALESCE(SUM(a.totalAppCount), 0),
+                COALESCE(SUM(a.totalAppCount - a.appAvlbCount), 0),
                 COALESCE(SUM(a.sold), 0)
             FROM UserAppSold a
             WHERE a.isActive = 1
@@ -234,7 +234,7 @@ public interface UserAppSoldRepository extends JpaRepository<UserAppSold, Long> 
     @Query("""
             SELECT
                 a.acdcYearId,
-                COALESCE(SUM(a.totalAppCount), 0),
+                COALESCE(SUM(a.totalAppCount - a.appAvlbCount), 0),
                 COALESCE(SUM(a.sold), 0)
             FROM UserAppSold a
             WHERE a.isActive = 1
@@ -247,7 +247,7 @@ public interface UserAppSoldRepository extends JpaRepository<UserAppSold, Long> 
     @Query("""
             SELECT
                 a.acdcYearId,
-                COALESCE(SUM(a.totalAppCount), 0),
+                COALESCE(SUM(a.totalAppCount - a.appAvlbCount), 0),
                 COALESCE(SUM(a.sold), 0)
             FROM UserAppSold a
             WHERE a.isActive = 1
@@ -260,7 +260,7 @@ public interface UserAppSoldRepository extends JpaRepository<UserAppSold, Long> 
     @Query("""
             SELECT
                 a.acdcYearId,
-                COALESCE(SUM(a.totalAppCount), 0),
+                COALESCE(SUM(a.totalAppCount - a.appAvlbCount), 0),
                 COALESCE(SUM(a.sold), 0)
             FROM UserAppSold a
             WHERE a.isActive = 1
@@ -274,7 +274,7 @@ public interface UserAppSoldRepository extends JpaRepository<UserAppSold, Long> 
     @Query("""
             SELECT
                 a.acdcYearId,
-                COALESCE(SUM(a.totalAppCount), 0),
+                COALESCE(SUM(a.totalAppCount - a.appAvlbCount), 0),
                 COALESCE(SUM(a.sold), 0)
             FROM UserAppSold a
             WHERE a.isActive = 1
@@ -288,7 +288,7 @@ public interface UserAppSoldRepository extends JpaRepository<UserAppSold, Long> 
     @Query("""
             SELECT
                 a.acdcYearId,
-                COALESCE(SUM(a.totalAppCount), 0),
+                COALESCE(SUM(a.totalAppCount - a.appAvlbCount), 0),
                 COALESCE(SUM(a.sold), 0)
             FROM UserAppSold a
             WHERE a.isActive = 1
@@ -305,7 +305,7 @@ public interface UserAppSoldRepository extends JpaRepository<UserAppSold, Long> 
     @Query("""
             SELECT
                 a.acdcYearId,
-                COALESCE(SUM(a.totalAppCount), 0),
+                COALESCE(SUM(a.totalAppCount - a.appAvlbCount), 0),
                 COALESCE(SUM(a.sold), 0)
             FROM UserAppSold a
             WHERE a.isActive = 1
@@ -318,7 +318,7 @@ public interface UserAppSoldRepository extends JpaRepository<UserAppSold, Long> 
     @Query("""
             SELECT
                 a.acdcYearId,
-                COALESCE(SUM(a.totalAppCount), 0),
+                COALESCE(SUM(a.totalAppCount - a.appAvlbCount), 0),
                 COALESCE(SUM(a.sold), 0)
             FROM UserAppSold a
             WHERE a.isActive = 1
@@ -332,7 +332,7 @@ public interface UserAppSoldRepository extends JpaRepository<UserAppSold, Long> 
     @Query("""
             SELECT
                 a.acdcYearId,
-                COALESCE(SUM(a.totalAppCount), 0),
+                COALESCE(SUM(a.totalAppCount - a.appAvlbCount), 0),
                 COALESCE(SUM(a.sold), 0)
             FROM UserAppSold a
             WHERE a.isActive = 1

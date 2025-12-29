@@ -28,6 +28,8 @@ public class UserAppSold {
     private Long rangeStartNo;
     private Long rangeEndNo;
     private Integer totalAppCount;
+    @Column(name = "app_avlb_count")
+    private Integer appAvlbCount;
     private Integer sold;
     private Float amount;
 

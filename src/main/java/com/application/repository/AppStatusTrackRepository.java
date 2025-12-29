@@ -144,7 +144,7 @@ public interface AppStatusTrackRepository extends JpaRepository<AppStatusTrack, 
             "COALESCE(SUM(CASE WHEN ibt.appIssuedId = 4 THEN ast.totalApp ELSE 0 END), 0)) " +
             "FROM AppStatusTrack ast " +
             "LEFT JOIN ast.issuedByType ibt " +
-            "WHERE ast.zone.id = :zoneId AND ast.academicYear.acdcYearId = :acdcYearId")
+            "WHERE ast.zone.id = :zoneId AND ast.academicYear.acdcYearId = :acdcYearId AND ast.isActive = 1")
  
     Optional<MetricsAggregateDTO> getMetricsByZoneAndYear( // <-- Use new DTO
  
@@ -379,14 +379,15 @@ public interface AppStatusTrackRepository extends JpaRepository<AppStatusTrack, 
                  @Param("yearId") Integer yearId
          );
  
-         @Query("SELECT DISTINCT a.academicYear.id FROM AppStatusTrack a WHERE a.zone.id = :zoneId")
+         @Query(value = "SELECT DISTINCT a.acdc_year_id FROM sce_application.sce_app_stats_trk a WHERE a.zone_id = :zoneId AND a.is_active = 1", nativeQuery = true)
          List<Integer> findDistinctYearIdsByZoneId(@Param("zoneId") Integer zoneId);
          
-         @Query("SELECT COALESCE(SUM(a.appAvailable), 0) " +
-                "FROM AppStatusTrack a " +
-                "WHERE a.zone.id = :zoneId " +
-                "AND a.academicYear.id = :yearId " +
-                "AND a.issuedByType.appIssuedId = 4")
+         @Query(value = "SELECT COALESCE(SUM(a.app_available), 0) " +
+                "FROM sce_application.sce_app_stats_trk a " +
+                "WHERE a.zone_id = :zoneId " +
+                "AND a.acdc_year_id = :yearId " +
+                "AND a.is_active = 1 " +
+                "AND a.app_issued_type_id = 4", nativeQuery = true)
          Optional<Long> getProMetricByZoneId_FromStatus(
                  @Param("zoneId") Integer zoneId,
                  @Param("yearId") Integer yearId

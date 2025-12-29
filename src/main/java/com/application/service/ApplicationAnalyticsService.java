@@ -139,22 +139,58 @@ return getCampusDirectAnalytics(employee);
         return analytics;
     }
     // --- CORE ANALYTICS METHODS (Unchanged) ---
-    public CombinedAnalyticsDTO getZoneAnalytics(Long zoneId) {
+    public CombinedAnalyticsDTO getZoneAnalytics(Long id) {
+        System.out.println("========================================");
+        System.out.println("🔍 DEBUG: getZoneAnalytics called");
+        System.out.println("Zone ID (Long): " + id);
+        Integer zoneIdInt = id.intValue();
+        System.out.println("Zone ID (Integer): " + zoneIdInt);
+        System.out.println("========================================");
+        
         CombinedAnalyticsDTO analytics = new CombinedAnalyticsDTO();
-        // Convert Long to Integer for the Repo calls that need it
-        Integer zoneIdInt = zoneId.intValue();
+
+        // 1. Graph Data
+        System.out.println("📊 Getting Graph Data for Zone: " + zoneIdInt);
         analytics.setGraphData(getGraphData(
-            (yearId) -> userAppSoldRepository.getSalesSummaryByZone(zoneIdInt, yearId),
-            () -> userAppSoldRepository.findDistinctYearIdsByZone(zoneIdInt)
+            (yearId) -> userAppSoldRepository.getSalesSummaryByZoneIdAndYear(zoneIdInt, yearId),
+            () -> userAppSoldRepository.findDistinctYearIdsByZoneId(zoneIdInt)
         ));
+
+        // 2. Metrics Data
+        System.out.println("📈 Getting Metrics Data for Zone: " + zoneIdInt);
+        System.out.println("🔍 Checking years from AppStatusTrack (filtered by is_active = 1)...");
+        List<Integer> years = appStatusTrackRepository.findDistinctYearIdsByZoneId(zoneIdInt);
+        System.out.println("✅ Found " + years.size() + " year(s) for Zone " + zoneIdInt + ": " + years);
+        
         analytics.setMetricsData(
             getMetricsData(
-                (yearId) -> appStatusTrackRepository.getMetricsByZoneAndYear(zoneId, yearId),
-                // CHANGE IS HERE: Use AppStatusTrack repo (filter by appIssuedId=4)
-                (yearId) -> appStatusTrackRepository.getProMetricByZoneId_FromStatus(zoneIdInt, yearId),
-                () -> appStatusTrackRepository.findDistinctYearIdsByZone(zoneId)
+                (yearId) -> {
+                    System.out.println("🔍 getMetricsByZoneIdAndYear called - Zone: " + zoneIdInt + ", Year: " + yearId);
+                    Optional<MetricsAggregateDTO> result = appStatusTrackRepository.getMetricsByZoneIdAndYear(zoneIdInt, yearId);
+                    if (result.isPresent()) {
+                        MetricsAggregateDTO dto = result.get();
+                        System.out.println("✅ Metrics found - TotalApp: " + dto.totalApp() + ", Sold: " + dto.appSold() + ", Confirmed: " + dto.appConfirmed());
+                    } else {
+                        System.out.println("❌ No metrics found for Zone " + zoneIdInt + ", Year " + yearId);
+                    }
+                    return result;
+                },
+                (yearId) -> {
+                    System.out.println("🔍 getProMetricByZoneId_FromStatus called - Zone: " + zoneIdInt + ", Year: " + yearId);
+                    Optional<Long> result = appStatusTrackRepository.getProMetricByZoneId_FromStatus(zoneIdInt, yearId);
+                    System.out.println("✅ PRO Metric: " + (result.isPresent() ? result.get() : "Not found"));
+                    return result;
+                },
+                () -> {
+                    System.out.println("🔍 findDistinctYearIdsByZoneId called for Zone: " + zoneIdInt);
+                    List<Integer> yearList = appStatusTrackRepository.findDistinctYearIdsByZoneId(zoneIdInt);
+                    System.out.println("✅ Years returned: " + yearList);
+                    return yearList;
+                }
             )
         );
+
+        System.out.println("========================================");
         return analytics;
     }
     public CombinedAnalyticsDTO getDgmAnalytics(Integer dgmEmpId) {
@@ -482,10 +518,13 @@ private MetricsDataDTO getMetricsDataForZone(Integer zoneId) {
             Function<Integer, Optional<MetricsAggregateDTO>> dataFetcher,
             Function<Integer, Optional<Long>> proFetcher,
             Supplier<List<Integer>> yearFetcher) {
+        System.out.println("🔍 getMetricsData called");
         MetricsDataDTO dto = new MetricsDataDTO();
         try {
             List<Integer> yearIds = yearFetcher.get();
+            System.out.println("📅 Year IDs from fetcher: " + yearIds);
             if (yearIds.isEmpty()) {
+                System.out.println("❌ No years found - returning empty metrics");
                 dto.setMetrics(new ArrayList<>());
                 return dto;
             }
@@ -495,21 +534,38 @@ private MetricsDataDTO getMetricsDataForZone(Integer zoneId) {
             int previousYearId = (yearIds.size() > 1)
                     ? yearIds.get(yearIds.size() - 2)
                     : currentYearId;
+            System.out.println("📅 Current Year ID: " + currentYearId);
+            System.out.println("📅 Previous Year ID: " + previousYearId);
+            
             AcademicYear cy = academicYearRepository.findById(currentYearId).orElse(null);
             AcademicYear py = academicYearRepository.findById(previousYearId).orElse(null);
+            System.out.println("📅 Current Year Entity: " + (cy != null ? cy.getAcademicYear() : "NULL"));
+            System.out.println("📅 Previous Year Entity: " + (py != null ? py.getAcademicYear() : "NULL"));
+            
             dto.setCurrentYear(cy != null ? cy.getYear() : 0);
             dto.setPreviousYear(py != null ? py.getYear() : 0);
+            
+            System.out.println("🔍 Fetching current year metrics...");
             MetricsAggregateDTO curr = dataFetcher.apply(currentYearId)
                     .orElse(new MetricsAggregateDTO());
+            System.out.println("🔍 Fetching previous year metrics...");
             MetricsAggregateDTO prev = dataFetcher.apply(previousYearId)
                     .orElse(new MetricsAggregateDTO());
+            
+            System.out.println("📊 Current Metrics - TotalApp: " + curr.totalApp() + ", Sold: " + curr.appSold() + ", Confirmed: " + curr.appConfirmed() + ", Available: " + curr.appAvailable() + ", Issued: " + curr.appIssued());
+            System.out.println("📊 Previous Metrics - TotalApp: " + prev.totalApp() + ", Sold: " + prev.appSold() + ", Confirmed: " + prev.appConfirmed() + ", Available: " + prev.appAvailable() + ", Issued: " + prev.appIssued());
+            
+            System.out.println("🔍 Fetching PRO metrics...");
             long proCurr = proFetcher.apply(currentYearId).orElse(0L);
             long proPrev = proFetcher.apply(previousYearId).orElse(0L);
+            System.out.println("📊 PRO Current: " + proCurr + ", PRO Previous: " + proPrev);
 MetricsAggregateDTO totalMetrics = curr; // instead of summing every year
             long totalPro = proCurr;
             // ------------------------------------------------------
             List<MetricDTO> cards = buildMetricsList(curr, prev, totalMetrics, proCurr, proPrev, totalPro);
+            System.out.println("✅ Built " + cards.size() + " metric cards");
             dto.setMetrics(cards);
+            System.out.println("========================================");
         } catch (Exception ex) {
             System.out.println("🔥 METRICS ERROR: " + ex.getMessage());
             ex.printStackTrace();
