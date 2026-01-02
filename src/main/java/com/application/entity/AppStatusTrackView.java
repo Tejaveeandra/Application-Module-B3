@@ -19,12 +19,12 @@ public class AppStatusTrackView {
  
 	@Id
 	@Column(name = "app_no")
-	private int num;
-	private int pro_emp_id;
+	private Integer num;
+	private Integer pro_emp_id;
 	private String pro_name;
-	private int dgm_emp_id;
+	private Integer dgm_emp_id;
 	private String dgm_name;
-	private int zone_id;
+	private Integer zone_id;
 	private String zone_name;
 	private Integer cmps_id;
 	private String cmps_name;

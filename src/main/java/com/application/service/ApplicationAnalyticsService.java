@@ -648,19 +648,21 @@ MetricsAggregateDTO totalMetrics = curr; // instead of summing every year
     }
     // --- NEW: Flexible Graph Data Method with Optional Filters ---
     /**
-     * Get year-wise graph data (GraphBarDTO) with optional filters for zoneId, campusIds, and amount.
+     * Get year-wise graph data (GraphBarDTO) with optional filters for zoneId, campusIds, campusId, and amount.
      * All parameters are optional. Always returns data for the past 4 years (current + 3 previous).
      * If data doesn't exist for a year, returns 0 values for that year.
      *
-     * Note: campusIds can contain one or more campus IDs. For single campus, pass a list with one element.
-     * For multiple campuses, pass a list with multiple elements.
+     * IMPORTANT:
+     * - campusId (singular) uses entity_id = 4 (single campus/PRO role)
+     * - campusIds (plural) uses entity_id = 3 (DGM rollup with multiple campuses)
      *
      * @param zoneId Optional zone ID filter
-     * @param campusIds Optional list of campus IDs filter (can be single or multiple campuses)
+     * @param campusIds Optional list of campus IDs filter (uses entity_id = 3 for DGM rollup)
+     * @param campusId Optional single campus ID filter (uses entity_id = 4 for single campus)
      * @param amount Optional amount filter
      * @return List of GraphBarDTO containing year-wise issued and sold data for past 4 years
      */
-    public List<GraphBarDTO> getFlexibleGraphData(Integer zoneId, List<Integer> campusIds, Float amount) {
+    public List<GraphBarDTO> getFlexibleGraphData(Integer zoneId, List<Integer> campusIds, Integer campusId, Float amount) {
         // Get current year (latest year) from AppStatusTrackRepository
         Integer currentYearId = appStatusTrackRepository.findLatestYearId();
         if (currentYearId == null) {
@@ -672,27 +674,29 @@ MetricsAggregateDTO totalMetrics = curr; // instead of summing every year
             yearIds.add(currentYearId - i);
         }
         List<Object[]> rows;
-        // Check if we have multiple campuses or single campus
+        // IMPORTANT: 
+        // - campusId (singular) uses entity_id = 4 (single campus methods)
+        // - campusIds (plural) uses entity_id = 3 (list methods, even for single element)
+        boolean hasCampusId = campusId != null;
+        boolean hasCampusIds = campusIds != null && !campusIds.isEmpty();
         boolean hasMultipleCampuses = campusIds != null && campusIds.size() > 1;
-        boolean hasSingleCampus = campusIds != null && campusIds.size() == 1;
-        Integer singleCampusId = hasSingleCampus ? campusIds.get(0) : null;
         // DEBUG: Check individual campus data before aggregation (for multiple campuses)
         if (hasMultipleCampuses) {
             System.out.println("=== CHECKING INDIVIDUAL CAMPUS DATA ===");
-            for (Integer campusId : campusIds) {
+            for (Integer id : campusIds) {
                 List<Object[]> individualCampusRows;
                 if (amount != null) {
-                    individualCampusRows = userAppSoldRepository.getYearWiseIssuedAndSoldByCampusAndAmount(campusId, amount);
+                    individualCampusRows = userAppSoldRepository.getYearWiseIssuedAndSoldByCampusAndAmount(id, amount);
                 } else {
-                    individualCampusRows = userAppSoldRepository.getYearWiseIssuedAndSoldByCampus(campusId);
+                    individualCampusRows = userAppSoldRepository.getYearWiseIssuedAndSoldByCampus(id);
                 }
                 // Filter by yearIds
                 individualCampusRows = individualCampusRows.stream()
                         .filter(row -> yearIds.contains((Integer) row[0]))
                         .collect(java.util.stream.Collectors.toList());
-                System.out.println("Campus ID " + campusId + " - Individual data:");
+                System.out.println("Campus ID " + id + " - Individual data:");
                 if (individualCampusRows.isEmpty()) {
-System.out.println(" ⚠️ NO DATA FOUND for Campus ID " + campusId + " (for the past 4 years)");
+System.out.println(" ⚠️ NO DATA FOUND for Campus ID " + id + " (for the past 4 years)");
                 } else {
                     for (Object[] row : individualCampusRows) {
                         Integer yearId = (Integer) row[0];
@@ -705,50 +709,53 @@ System.out.println(" Year ID: " + yearId + " | Issued: " + totalAppCount + " | S
             System.out.println("=== END INDIVIDUAL CAMPUS DATA CHECK ===");
         }
         // Determine which repository method to call based on provided parameters
-        if (zoneId != null && hasMultipleCampuses && amount != null) {
-            // Zone + Multiple Campuses + Amount
-            System.out.println("Using filter: Zone + Multiple Campuses + Amount (zoneId=" + zoneId + ", campusIds=" + campusIds + ", amount=" + amount + ")");
+        // Priority: Check campusId (singular, entity_id=4) first, then campusIds (plural, entity_id=3)
+        if (zoneId != null && hasCampusId && amount != null) {
+            // Zone + Single Campus (campusId) + Amount - use single campus method with entity_id = 4
+            System.out.println("Using filter: Zone + Single Campus (campusId) + Amount (zoneId=" + zoneId + ", campusId=" + campusId + ", amount=" + amount + ")");
+            rows = userAppSoldRepository.getYearWiseIssuedAndSoldByZoneCampusAndAmount(zoneId, campusId, amount);
+            rows = rows.stream()
+                    .filter(row -> yearIds.contains((Integer) row[0]))
+                    .collect(java.util.stream.Collectors.toList());
+        } else if (zoneId != null && hasCampusIds && amount != null) {
+            // Zone + Campuses (campusIds) + Amount - use list method with entity_id = 3
+            System.out.println("Using filter: Zone + Campuses (campusIds) + Amount (zoneId=" + zoneId + ", campusIds=" + campusIds + ", amount=" + amount + ")");
             rows = userAppSoldRepository.getYearWiseIssuedAndSoldByZoneCampusListAndAmount(zoneId, campusIds, amount);
             rows = rows.stream()
                     .filter(row -> yearIds.contains((Integer) row[0]))
                     .collect(java.util.stream.Collectors.toList());
-        } else if (zoneId != null && hasSingleCampus && amount != null) {
-            // Zone + Single Campus + Amount
-            System.out.println("Using filter: Zone + Campus + Amount");
-            rows = userAppSoldRepository.getYearWiseIssuedAndSoldByZoneCampusAndAmount(zoneId, singleCampusId, amount);
+        } else if (hasCampusId && amount != null) {
+            // Single Campus (campusId) + Amount - use single campus method with entity_id = 4
+            System.out.println("Using filter: Single Campus (campusId) + Amount (campusId=" + campusId + ", amount=" + amount + ")");
+            rows = userAppSoldRepository.getYearWiseIssuedAndSoldByCampusAndAmount(campusId, amount);
             rows = rows.stream()
                     .filter(row -> yearIds.contains((Integer) row[0]))
                     .collect(java.util.stream.Collectors.toList());
-        } else if (hasMultipleCampuses && amount != null) {
-            // Multiple Campuses + Amount
-            System.out.println("Using filter: Multiple Campuses + Amount (campusIds=" + campusIds + ", amount=" + amount + ")");
+        } else if (hasCampusIds && amount != null) {
+            // Campuses (campusIds) + Amount - use list method with entity_id = 3
+            System.out.println("Using filter: Campuses (campusIds) + Amount (campusIds=" + campusIds + ", amount=" + amount + ")");
             rows = userAppSoldRepository.getYearWiseIssuedAndSoldByCampusListAndAmount(campusIds, amount);
             rows = rows.stream()
                     .filter(row -> yearIds.contains((Integer) row[0]))
                     .collect(java.util.stream.Collectors.toList());
-        } else if (hasSingleCampus && amount != null) {
-            // Single Campus + Amount
-            rows = userAppSoldRepository.getYearWiseIssuedAndSoldByCampusAndAmount(singleCampusId, amount);
-            rows = rows.stream()
-                    .filter(row -> yearIds.contains((Integer) row[0]))
-                    .collect(java.util.stream.Collectors.toList());
         } else if (zoneId != null && amount != null) {
-            // Zone + Amount - need to filter by yearIds manually
+            // Zone + Amount
             System.out.println("Using filter: Zone + Amount (zoneId=" + zoneId + ", amount=" + amount + ")");
             rows = userAppSoldRepository.getYearWiseIssuedAndSoldByZoneAndAmount(zoneId, amount);
             rows = rows.stream()
                     .filter(row -> yearIds.contains((Integer) row[0]))
                     .collect(java.util.stream.Collectors.toList());
-        } else if (hasMultipleCampuses) {
-            // Multiple Campuses only
-            System.out.println("Using filter: Multiple Campuses (campusIds=" + campusIds + ")");
-            rows = userAppSoldRepository.getYearWiseIssuedAndSoldByCampusList(campusIds);
+        } else if (hasCampusId) {
+            // Single Campus (campusId) only - use single campus method with entity_id = 4
+            System.out.println("Using filter: Single Campus (campusId) (campusId=" + campusId + ")");
+            rows = userAppSoldRepository.getYearWiseIssuedAndSoldByCampus(campusId);
             rows = rows.stream()
                     .filter(row -> yearIds.contains((Integer) row[0]))
                     .collect(java.util.stream.Collectors.toList());
-        } else if (hasSingleCampus) {
-            // Single Campus only - need to filter by yearIds manually
-            rows = userAppSoldRepository.getYearWiseIssuedAndSoldByCampus(singleCampusId);
+        } else if (hasCampusIds) {
+            // Campuses (campusIds) only - use list method with entity_id = 3
+            System.out.println("Using filter: Campuses (campusIds) (campusIds=" + campusIds + ")");
+            rows = userAppSoldRepository.getYearWiseIssuedAndSoldByCampusList(campusIds);
             rows = rows.stream()
                     .filter(row -> yearIds.contains((Integer) row[0]))
                     .collect(java.util.stream.Collectors.toList());

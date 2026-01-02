@@ -26,6 +26,7 @@ public interface UserAppSoldRepository extends JpaRepository<UserAppSold, Long> 
                     SUM(a.sold)
                 FROM UserAppSold a
                 WHERE a.isActive = 1
+                  AND a.entityId IN (2, 3, 4)
                 GROUP BY a.acdcYearId
                 ORDER BY a.acdcYearId
             """)
@@ -47,7 +48,8 @@ public interface UserAppSoldRepository extends JpaRepository<UserAppSold, Long> 
                     COALESCE(SUM(uas.totalAppCount), 0),
                     COALESCE(SUM(uas.sold), 0))
                 FROM UserAppSold uas
-                WHERE uas.zone.zoneId = :zoneId
+                WHERE uas.entityId = 2
+                  AND uas.zone.zoneId = :zoneId
                   AND uas.acdcYearId = :acdcYearId
             """)
     Optional<GraphSoldSummaryDTO> getSalesSummaryByZone(@Param("zoneId") Integer zoneId,
@@ -90,12 +92,12 @@ public interface UserAppSoldRepository extends JpaRepository<UserAppSold, Long> 
     Optional<Long> getProMetricByDgm(@Param("dgmId") Integer dgmId, @Param("acdcYearId") Integer acdcYearId);
  
     // --- NEW: Method for a LIST of campuses (DGM-Rollup) ---
-    @Query("SELECT NEW com.application.dto.GraphSoldSummaryDTO(COALESCE(SUM(uas.totalAppCount), 0), COALESCE(SUM(uas.sold), 0)) FROM UserAppSold uas WHERE uas.entityId = 4 AND uas.campus.id IN :campusIds AND uas.acdcYearId = :acdcYearId")
+    @Query("SELECT NEW com.application.dto.GraphSoldSummaryDTO(COALESCE(SUM(uas.totalAppCount), 0), COALESCE(SUM(uas.sold), 0)) FROM UserAppSold uas WHERE uas.entityId = 3 AND uas.campus.id IN :campusIds AND uas.acdcYearId = :acdcYearId")
     Optional<GraphSoldSummaryDTO> getSalesSummaryByCampusList(@Param("campusIds") List<Integer> campusIds,
             @Param("acdcYearId") Integer acdcYearId);
  
     // --- NEW: Method for a LIST of campuses (DGM-Rollup) ---
-    @Query("SELECT COALESCE(SUM(uas.totalAppCount), 0) FROM UserAppSold uas WHERE uas.entityId = 4 AND uas.campus.id IN :campusIds AND uas.acdcYearId = :acdcYearId")
+    @Query("SELECT COALESCE(SUM(uas.totalAppCount), 0) FROM UserAppSold uas WHERE uas.entityId = 3 AND uas.campus.id IN :campusIds AND uas.acdcYearId = :acdcYearId")
     Optional<Long> getProMetricByCampusList(@Param("campusIds") List<Integer> campusIds,
             @Param("acdcYearId") Integer acdcYearId);
  
@@ -112,7 +114,7 @@ public interface UserAppSoldRepository extends JpaRepository<UserAppSold, Long> 
     List<Integer> findDistinctYearIdsByCampus(@Param("campusId") Integer campusId);
  
     // --- NEW: Method for a LIST of campuses (DGM-Rollup) ---
-    @Query("SELECT DISTINCT uas.acdcYearId FROM UserAppSold uas WHERE uas.entityId = 4 AND uas.campus.id IN :campusIds")
+    @Query("SELECT DISTINCT uas.acdcYearId FROM UserAppSold uas WHERE uas.entityId = 3 AND uas.campus.id IN :campusIds")
     List<Integer> findDistinctYearIdsByCampusList(@Param("campusIds") List<Integer> campusIds);
  
     // --- NEW: DGM List query for Zonal Rollup ('With PRO' card) ---
@@ -144,6 +146,7 @@ public interface UserAppSoldRepository extends JpaRepository<UserAppSold, Long> 
                     COALESCE(SUM(a.sold), 0)
                 FROM UserAppSold a
                 WHERE a.isActive = 1
+                  AND a.entityId = 3
                   AND a.empId = :empId
                   AND a.acdcYearId IN :yearIds
                 GROUP BY a.acdcYearId
@@ -225,6 +228,7 @@ public interface UserAppSoldRepository extends JpaRepository<UserAppSold, Long> 
                 COALESCE(SUM(a.sold), 0)
             FROM UserAppSold a
             WHERE a.isActive = 1
+              AND a.entityId = 2
               AND a.zone.zoneId = :zoneId
             GROUP BY a.acdcYearId
             ORDER BY a.acdcYearId
@@ -238,6 +242,7 @@ public interface UserAppSoldRepository extends JpaRepository<UserAppSold, Long> 
                 COALESCE(SUM(a.sold), 0)
             FROM UserAppSold a
             WHERE a.isActive = 1
+              AND a.entityId = 4
               AND a.campus.campusId = :campusId
             GROUP BY a.acdcYearId
             ORDER BY a.acdcYearId
@@ -251,6 +256,7 @@ public interface UserAppSoldRepository extends JpaRepository<UserAppSold, Long> 
                 COALESCE(SUM(a.sold), 0)
             FROM UserAppSold a
             WHERE a.isActive = 1
+              AND a.entityId IN (2, 3, 4)
               AND a.amount = :amount
             GROUP BY a.acdcYearId
             ORDER BY a.acdcYearId
@@ -264,6 +270,7 @@ public interface UserAppSoldRepository extends JpaRepository<UserAppSold, Long> 
                 COALESCE(SUM(a.sold), 0)
             FROM UserAppSold a
             WHERE a.isActive = 1
+              AND a.entityId = 2
               AND a.zone.zoneId = :zoneId
               AND a.amount = :amount
             GROUP BY a.acdcYearId
@@ -278,6 +285,7 @@ public interface UserAppSoldRepository extends JpaRepository<UserAppSold, Long> 
                 COALESCE(SUM(a.sold), 0)
             FROM UserAppSold a
             WHERE a.isActive = 1
+              AND a.entityId = 4
               AND a.campus.campusId = :campusId
               AND a.amount = :amount
             GROUP BY a.acdcYearId
@@ -292,6 +300,7 @@ public interface UserAppSoldRepository extends JpaRepository<UserAppSold, Long> 
                 COALESCE(SUM(a.sold), 0)
             FROM UserAppSold a
             WHERE a.isActive = 1
+              AND a.entityId = 4
               AND a.zone.zoneId = :zoneId
               AND a.campus.campusId = :campusId
               AND a.amount = :amount
@@ -309,6 +318,7 @@ public interface UserAppSoldRepository extends JpaRepository<UserAppSold, Long> 
                 COALESCE(SUM(a.sold), 0)
             FROM UserAppSold a
             WHERE a.isActive = 1
+              AND a.entityId = 3
               AND a.campus.campusId IN :campusIds
             GROUP BY a.acdcYearId
             ORDER BY a.acdcYearId
@@ -322,6 +332,7 @@ public interface UserAppSoldRepository extends JpaRepository<UserAppSold, Long> 
                 COALESCE(SUM(a.sold), 0)
             FROM UserAppSold a
             WHERE a.isActive = 1
+              AND a.entityId = 3
               AND a.campus.campusId IN :campusIds
               AND a.amount = :amount
             GROUP BY a.acdcYearId
@@ -336,6 +347,7 @@ public interface UserAppSoldRepository extends JpaRepository<UserAppSold, Long> 
                 COALESCE(SUM(a.sold), 0)
             FROM UserAppSold a
             WHERE a.isActive = 1
+              AND a.entityId = 3
               AND a.zone.zoneId = :zoneId
               AND a.campus.campusId IN :campusIds
               AND a.amount = :amount
@@ -350,7 +362,7 @@ public interface UserAppSoldRepository extends JpaRepository<UserAppSold, Long> 
  
      // --- FOR ZONAL ACCOUNTANT (Direct Zone ID) ---
      @Query("SELECT u.acdcYearId, SUM(u.sold), SUM(u.amount) " +
-            "FROM UserAppSold u WHERE u.zone.id = :zoneId GROUP BY u.acdcYearId")
+            "FROM UserAppSold u WHERE u.entityId = 2 AND u.zone.id = :zoneId GROUP BY u.acdcYearId")
      List<Object[]> getSalesSummaryByZoneId(@Param("zoneId") Integer zoneId);
    
      @Query("SELECT NEW com.application.dto.GraphSoldSummaryDTO(" +
@@ -373,17 +385,17 @@ public interface UserAppSoldRepository extends JpaRepository<UserAppSold, Long> 
  
       @Query("SELECT NEW com.application.dto.GraphSoldSummaryDTO(" +
              "COALESCE(SUM(u.totalAppCount), 0), COALESCE(SUM(u.sold), 0)) " +
-             "FROM UserAppSold u WHERE u.zone.id = :zoneId AND u.acdcYearId = :yearId AND u.isActive = 1")
+             "FROM UserAppSold u WHERE u.entityId = 2 AND u.zone.id = :zoneId AND u.acdcYearId = :yearId AND u.isActive = 1")
       Optional<GraphSoldSummaryDTO> getSalesSummaryByZoneIdAndYear(
               @Param("zoneId") Integer zoneId,
               @Param("yearId") Integer yearId
       );
  
-      @Query("SELECT DISTINCT u.acdcYearId FROM UserAppSold u WHERE u.zone.id = :zoneId")
+      @Query("SELECT DISTINCT u.acdcYearId FROM UserAppSold u WHERE u.entityId = 2 AND u.zone.id = :zoneId")
       List<Integer> findDistinctYearIdsByZoneId(@Param("zoneId") Integer zoneId);
      
       // Fixed: Return Optional<Long>
-      @Query("SELECT COALESCE(SUM(u.sold), 0) FROM UserAppSold u WHERE u.zone.id = :zoneId AND u.acdcYearId = :yearId")
+      @Query("SELECT COALESCE(SUM(u.sold), 0) FROM UserAppSold u WHERE u.entityId = 2 AND u.zone.id = :zoneId AND u.acdcYearId = :yearId")
       Optional<Long> getProMetricByZoneId(
               @Param("zoneId") Integer zoneId,
               @Param("yearId") Integer yearId
@@ -393,7 +405,7 @@ public interface UserAppSoldRepository extends JpaRepository<UserAppSold, Long> 
               "COALESCE(SUM(u.totalAppCount), 0), " +
               "COALESCE(SUM(u.sold), 0)) " +
               "FROM UserAppSold u " +
-              "WHERE u.zone.id = :zoneId AND u.acdcYearId = :yearId")
+              "WHERE u.entityId = 2 AND u.zone.id = :zoneId AND u.acdcYearId = :yearId")
        Optional<GraphSoldSummaryDTO> getSalesSummaryByZoneId(
                @Param("zoneId") Integer zoneId,
                @Param("yearId") Integer yearId
@@ -442,13 +454,13 @@ public interface UserAppSoldRepository extends JpaRepository<UserAppSold, Long> 
          
           @Query("SELECT NEW com.application.dto.GraphSoldSummaryDTO(" +
                    "COALESCE(SUM(u.totalAppCount), 0), COALESCE(SUM(u.sold), 0)) " +
-                   "FROM UserAppSold u WHERE u.campus.id IN :campusIds AND u.acdcYearId = :yearId AND u.isActive = 1")
+                   "FROM UserAppSold u WHERE u.entityId = 3 AND u.campus.id IN :campusIds AND u.acdcYearId = :yearId AND u.isActive = 1")
             Optional<GraphSoldSummaryDTO> getSalesSummaryByCampusIdsAndYear(
                     @Param("campusIds") List<Integer> campusIds,
                     @Param("yearId") Integer yearId
             );
  
-            @Query("SELECT DISTINCT u.acdcYearId FROM UserAppSold u WHERE u.campus.id IN :campusIds")
+            @Query("SELECT DISTINCT u.acdcYearId FROM UserAppSold u WHERE u.entityId = 3 AND u.campus.id IN :campusIds")
             List<Integer> findDistinctYearIdsByCampusIds(@Param("campusIds") List<Integer> campusIds);
  
  

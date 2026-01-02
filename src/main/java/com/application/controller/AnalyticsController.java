@@ -103,22 +103,28 @@ public class AnalyticsController {
     public ResponseEntity<List<GraphBarDTO>> getFlexibleGraphData(
             @RequestParam(required = false) Integer zoneId,
             @RequestParam(required = false) List<Integer> campusIds,
+            @RequestParam(required = false) Integer campusId,
             @RequestParam(required = false) Float amount) {
        
         try {
-            // Use campusIds list for both single and multiple campuses
+            // IMPORTANT: campusId (singular) uses entity_id = 4, campusIds (plural) uses entity_id = 3
+            // Don't convert campusId to campusIds - pass them separately to service
             System.out.println("========================================");
             System.out.println("FLEXIBLE GRAPH REQUEST");
             System.out.println("Zone ID: " + zoneId);
+            if (campusId != null) {
+                System.out.println("Campus ID (singular, entity_id=4): " + campusId);
+            }
             if (campusIds != null && !campusIds.isEmpty()) {
-                System.out.println("Campus IDs: " + campusIds + " (Total: " + campusIds.size() + " campus/es)");
-            } else {
+                System.out.println("Campus IDs (plural, entity_id=3): " + campusIds + " (Total: " + campusIds.size() + " campus/es)");
+            }
+            if (campusId == null && (campusIds == null || campusIds.isEmpty())) {
                 System.out.println("Campus IDs: None");
             }
             System.out.println("Amount: " + amount);
             System.out.println("========================================");
            
-            List<GraphBarDTO> graphData = analyticsService.getFlexibleGraphData(zoneId, campusIds, amount);
+            List<GraphBarDTO> graphData = analyticsService.getFlexibleGraphData(zoneId, campusIds, campusId, amount);
            
             // Log the final response summary
             if (campusIds != null && !campusIds.isEmpty()) {
