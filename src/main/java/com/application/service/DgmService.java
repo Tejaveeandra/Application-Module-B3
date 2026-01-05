@@ -683,6 +683,14 @@ public List<AppSeriesDTO> getActiveSeriesForReceiver(int receiverId, int academi
 
         // NEW VALIDATION: Check if sender actually owns the requested application range and amount
         validateSenderHasAvailableRange(formDto);
+
+        // Validate Receiver is Active
+        com.application.entity.Employee receiverEmp = employeeRepository.findById(receiverEmpId)
+                .orElseThrow(() -> new RuntimeException("Receiver Employee not found"));
+
+        if (receiverEmp.getIsActive() != 1) {
+             throw new RuntimeException("Transaction Failed: The selected Receiver is Inactive.");
+        }
  
         // 1. AUTO-DETECT TYPES (Backend Logic)
         int issuedById = getRoleTypeIdByEmpId(issuerUserId);   // Who is sending?

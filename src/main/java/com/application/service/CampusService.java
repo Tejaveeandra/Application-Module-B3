@@ -286,6 +286,11 @@ public class CampusService {
         // 3. Lookup Receiver
         CampusProView receiver = campusProViewRepository.findByEmp_id(formDto.getReceiverId())
                 .orElseThrow(() -> new RuntimeException("Receiver not found"));
+
+        // Validate Receiver is Active
+        if (receiver.getIs_active() != 1) {
+             throw new RuntimeException("Transaction Failed: The selected Receiver is Inactive.");
+        }
  
         // 4. Traffic Switch
         if (receiver.getIsOurEmp() == 1) {

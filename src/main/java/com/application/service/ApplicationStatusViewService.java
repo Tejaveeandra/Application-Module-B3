@@ -74,9 +74,9 @@ public class ApplicationStatusViewService {
             return appStatusTrackViewRepository.findByCmps_id(employee.getEmpCampusId());
             
         case "PRO":
-            System.out.println("Matched Case: PRO");
-            // Filters based on the PRO's employee ID
-            return appStatusTrackViewRepository.findByPro_emp_id(empId);
+            System.out.println("Matched Case: PRO - Expanding visibility to campus-wide data");
+            // Expand visibility: Show all applications for the PRO's assigned campus
+            return appStatusTrackViewRepository.findByCmps_id(employee.getEmpCampusId());
             
         default:
             System.out.println("!! NO MATCH FOUND !! Role: " + role);

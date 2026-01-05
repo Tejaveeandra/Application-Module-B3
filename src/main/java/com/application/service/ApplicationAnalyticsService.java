@@ -24,6 +24,7 @@ import com.application.entity.ZonalAccountant;
 import com.application.repository.AcademicYearRepository;
 import com.application.repository.AppStatusTrackRepository;
 import com.application.repository.CampusRepository;
+import com.application.repository.DistributionRepository;
 import com.application.repository.DgmRepository;
 import com.application.repository.SCEmployeeRepository;
 import com.application.repository.UserAppSoldRepository;
@@ -46,8 +47,10 @@ public class ApplicationAnalyticsService {
     private ZonalAccountantRepository zonalAccountantRepository;
     @Autowired
     private DgmRepository dgmRepository;
-@Autowired
-private CampusRepository campusRepository;
+    @Autowired
+    private CampusRepository campusRepository;
+    @Autowired
+    private DistributionRepository distributionRepository;
 @Autowired
 private ZoneRepository zoneRepository;
 public CombinedAnalyticsDTO getRollupAnalytics(Integer empId) {
@@ -140,57 +143,136 @@ return getCampusDirectAnalytics(employee);
     }
     // --- CORE ANALYTICS METHODS (Unchanged) ---
     public CombinedAnalyticsDTO getZoneAnalytics(Long id) {
-        System.out.println("========================================");
-        System.out.println("🔍 DEBUG: getZoneAnalytics called");
-        System.out.println("Zone ID (Long): " + id);
+        // System.out.println("========================================");
+        // System.out.println("🔍 DEBUG: getZoneAnalytics called");
+        // System.out.println("Zone ID (Long): " + id);
         Integer zoneIdInt = id.intValue();
-        System.out.println("Zone ID (Integer): " + zoneIdInt);
-        System.out.println("========================================");
+        // System.out.println("Zone ID (Integer): " + zoneIdInt);
+        // System.out.println("========================================");
         
         CombinedAnalyticsDTO analytics = new CombinedAnalyticsDTO();
 
-        // 1. Graph Data
-        System.out.println("📊 Getting Graph Data for Zone: " + zoneIdInt);
+        // 1. Graph Data (ALIGNED WITH CARDS)
+        // System.out.println("📊 Getting Graph Data for Zone (Aligned with Cards): " + zoneIdInt);
         analytics.setGraphData(getGraphData(
-            (yearId) -> userAppSoldRepository.getSalesSummaryByZoneIdAndYear(zoneIdInt, yearId),
-            () -> userAppSoldRepository.findDistinctYearIdsByZoneId(zoneIdInt)
+            (yearId) -> {
+                // Get AppStatusTrack metrics (Type 2 - Zone only for issued)
+                MetricsAggregateDTO statusMetrics = appStatusTrackRepository.getMetricsByZoneIdAndYear(zoneIdInt, yearId)
+                    .orElse(new MetricsAggregateDTO());
+                
+                // Add Admin→DGM and Admin→Campus distributions to issued count
+                Integer adminToDgmDist = distributionRepository.sumAdminToDgmDistributionByZoneAndYear(zoneIdInt, yearId).orElse(0);
+                Integer adminToCampusDist = distributionRepository.sumAdminToCampusDistributionByZoneAndYear(zoneIdInt, yearId).orElse(0);
+                
+                long totalIssued = statusMetrics.appIssued() + adminToDgmDist + adminToCampusDist;
+                
+                return Optional.of(new GraphSoldSummaryDTO(
+                    totalIssued, 
+                    statusMetrics.appSold()
+                ));
+            },
+            () -> appStatusTrackRepository.findDistinctYearIdsByZoneId(zoneIdInt)
         ));
 
         // 2. Metrics Data
-        System.out.println("📈 Getting Metrics Data for Zone: " + zoneIdInt);
-        System.out.println("🔍 Checking years from AppStatusTrack (filtered by is_active = 1)...");
-        List<Integer> years = appStatusTrackRepository.findDistinctYearIdsByZoneId(zoneIdInt);
-        System.out.println("✅ Found " + years.size() + " year(s) for Zone " + zoneIdInt + ": " + years);
+        // System.out.println("📈 Getting Metrics Data for Zone: " + zoneIdInt);
+        // System.out.println("🔍 Checking years from AppStatusTrack (filtered by is_active = 1)...");
+        // List<Integer> years = appStatusTrackRepository.findDistinctYearIdsByZoneId(zoneIdInt);
+        // System.out.println("✅ Found " + years.size() + " year(s) for Zone " + zoneIdInt + ": " + years);
         
         analytics.setMetricsData(
             getMetricsData(
                 (yearId) -> {
-                    System.out.println("🔍 getMetricsByZoneIdAndYear called - Zone: " + zoneIdInt + ", Year: " + yearId);
-                    Optional<MetricsAggregateDTO> result = appStatusTrackRepository.getMetricsByZoneIdAndYear(zoneIdInt, yearId);
-                    if (result.isPresent()) {
-                        MetricsAggregateDTO dto = result.get();
-                        System.out.println("✅ Metrics found - TotalApp: " + dto.totalApp() + ", Sold: " + dto.appSold() + ", Confirmed: " + dto.appConfirmed());
-                    } else {
-                        System.out.println("❌ No metrics found for Zone " + zoneIdInt + ", Year " + yearId);
+                    // System.out.println("🔍 getMetricsByZoneIdAndYear called - Zone: " + zoneIdInt + ", Year: " + yearId);
+                    // Get AppStatusTrack metrics (covers Zone to DGM, DGM to Campus, Zone to Campus)
+                    // AppStatusTrack already includes all flows with app_issued_type_id IN (2, 3, 4)
+                    // This already captures: Zone→DGM, DGM→Campus, Zone→Campus flows
+                    MetricsAggregateDTO statusMetrics = appStatusTrackRepository.getMetricsByZoneIdAndYear(zoneIdInt, yearId)
+                        .orElse(new MetricsAggregateDTO());
+                    
+                    // Get issued breakdown by app_issued_type_id
+                    List<Object[]> issuedBreakdown = appStatusTrackRepository.getIssuedBreakdownByZoneIdAndYear(zoneIdInt, yearId);
+                    
+                    // Get distribution counts
+                    Integer adminToZoneDist = distributionRepository.sumAdminToZoneDistributionByZoneAndYear(zoneIdInt, yearId).orElse(0);
+                    Integer adminToDgmDist = distributionRepository.sumAdminToDgmDistributionByZoneAndYear(zoneIdInt, yearId).orElse(0);
+                    Integer adminToCampusDist = distributionRepository.sumAdminToCampusDistributionByZoneAndYear(zoneIdInt, yearId).orElse(0);
+                    
+                    // Display detailed breakdown for Zone Issued Calculation
+                    System.out.println("========================================");
+                    System.out.println("📊 ZONE ISSUED CALCULATION BREAKDOWN");
+                    System.out.println("========================================");
+                    System.out.println("Zone ID: " + zoneIdInt);
+                    System.out.println("Academic Year ID: " + yearId);
+                    System.out.println("----------------------------------------");
+                    System.out.println("📈 ISSUED COUNT FROM AppStatusTrack (Type 2 - Zone ONLY):");
+                    
+                    long issuedType2 = 0; // Zone
+                    
+                    for (Object[] row : issuedBreakdown) {
+                        Integer typeId = ((Number) row[0]).intValue();
+                        Long issued = ((Number) row[1]).longValue();
+                        
+                        if (typeId == 2) {
+                            issuedType2 = issued;
+                            System.out.println("   app_issued_type_id = 2 (Zone): " + issued);
+                        }
                     }
-                    return result;
+                    
+                    System.out.println("----------------------------------------");
+                    System.out.println("📊 TOTAL APPLICATIONS FROM AppStatusTrack:");
+                    System.out.println("   totalApp (app_issued_type_id = 2 - Zone): " + statusMetrics.totalApp());
+                    System.out.println("----------------------------------------");
+                    System.out.println("📦 DISTRIBUTION TABLE COUNTS (Direct Admin Distributions):");
+                    System.out.println("   Admin → Zone: " + adminToZoneDist);
+                    System.out.println("   Admin → DGM (Direct): " + adminToDgmDist + " (ADDED to totalApp and issued)");
+                    System.out.println("   Admin → Campus (Direct): " + adminToCampusDist + " (ADDED to totalApp and issued)");
+                    System.out.println("----------------------------------------");
+                    
+                    // Add Admin→DGM and Admin→Campus distributions to issued and totalApp
+                    long totalIssued = statusMetrics.appIssued() + adminToDgmDist + adminToCampusDist;
+                    long totalApp = statusMetrics.totalApp() + adminToDgmDist + adminToCampusDist;
+                    
+                    System.out.println("✅ FINAL ZONE CALCULATION:");
+                    System.out.println("   Total Applications:");
+                    System.out.println("     - From AppStatusTrack (Type 2 - Zone): " + statusMetrics.totalApp());
+                    System.out.println("     - Admin → DGM Distribution (Direct): " + adminToDgmDist);
+                    System.out.println("     - Admin → Campus Distribution (Direct): " + adminToCampusDist);
+                    System.out.println("     - TOTAL APPLICATIONS: " + totalApp);
+                    System.out.println("   Issued Count:");
+                    System.out.println("     - Zone (Type 2 from AppStatusTrack): " + issuedType2);
+                    System.out.println("     - Admin → DGM Distribution (Direct): " + adminToDgmDist);
+                    System.out.println("     - Admin → Campus Distribution (Direct): " + adminToCampusDist);
+                    System.out.println("     - TOTAL ISSUED: " + totalIssued);
+                    System.out.println("========================================");
+                    
+                    // Return metrics with added distribution counts
+                    return Optional.of(new MetricsAggregateDTO(
+                        totalApp, // totalApp + distributions
+                        statusMetrics.appSold(),
+                        statusMetrics.appConfirmed(),
+                        statusMetrics.appAvailable(),
+                        statusMetrics.appUnavailable(),
+                        statusMetrics.appDamaged(),
+                        totalIssued // issued + distributions
+                    ));
                 },
                 (yearId) -> {
-                    System.out.println("🔍 getProMetricByZoneId_FromStatus called - Zone: " + zoneIdInt + ", Year: " + yearId);
+                    // System.out.println("🔍 getProMetricByZoneId_FromStatus called - Zone: " + zoneIdInt + ", Year: " + yearId);
                     Optional<Long> result = appStatusTrackRepository.getProMetricByZoneId_FromStatus(zoneIdInt, yearId);
-                    System.out.println("✅ PRO Metric: " + (result.isPresent() ? result.get() : "Not found"));
+                    // System.out.println("✅ PRO Metric: " + (result.isPresent() ? result.get() : "Not found"));
                     return result;
                 },
                 () -> {
-                    System.out.println("🔍 findDistinctYearIdsByZoneId called for Zone: " + zoneIdInt);
+                    // System.out.println("🔍 findDistinctYearIdsByZoneId called for Zone: " + zoneIdInt);
                     List<Integer> yearList = appStatusTrackRepository.findDistinctYearIdsByZoneId(zoneIdInt);
-                    System.out.println("✅ Years returned: " + yearList);
+                    // System.out.println("✅ Years returned: " + yearList);
                     return yearList;
                 }
             )
         );
 
-        System.out.println("========================================");
+        // System.out.println("========================================");
         return analytics;
     }
     public CombinedAnalyticsDTO getDgmAnalytics(Integer dgmEmpId) {
@@ -216,18 +298,57 @@ public CombinedAnalyticsDTO getEmployeeAnalytics(Long empId) {
     if (campusIds.isEmpty()) {
         throw new RuntimeException("No active DGM records found for Employee ID: " + empId);
     }
+    // 2. Get Zone ID for this DGM employee
+    Integer zoneId = dgmRepository.findZoneIdByEmpId(empIdInt).orElse(null);
+    if (zoneId == null) {
+        throw new RuntimeException("No zone found for Employee ID: " + empId);
+    }
+    
     CombinedAnalyticsDTO analytics = new CombinedAnalyticsDTO();
-    // 2. Pass the list of campusIds to your repositories
-    // Ensure your repository methods are updated to use "IN :campusIds" instead of "= :campusId"
+    // 3. Use AppStatusTrack for graph data (issued and sold) with filters: app_issued_type_id = 3, is_active = 1, zone_id
+    // Also include admin-to-campus distribution count in issued (from Distribution table, filtered by campusIds)
     analytics.setGraphData(getGraphData(
-        (yearId) -> userAppSoldRepository.getSalesSummaryByCampusIdsAndYear(campusIds, yearId),
-        () -> userAppSoldRepository.findDistinctYearIdsByCampusIds(campusIds)
+        (yearId) -> {
+            // Get AppStatusTrack issued and sold (DGM→Campus: app_issued_type_id = 3, filtered by campusIds and zoneId)
+            GraphSoldSummaryDTO statusData = appStatusTrackRepository.getSalesSummaryByCampusIdsAndYearFromStatus(campusIds, zoneId, yearId)
+                .orElse(new GraphSoldSummaryDTO(0L, 0L));
+            // Get admin-to-campus distribution count (Admin→Campus: issued_by_type_id = 1, issued_to_type_id = 4, filtered by campusIds)
+            Integer adminToCampusDist = distributionRepository.sumAdminToCampusDistributionByCampusIdsAndYear(campusIds, yearId)
+                .orElse(0);
+            // Add distribution count to issued
+            long totalIssued = statusData.totalApplications() + adminToCampusDist;
+            return Optional.of(new GraphSoldSummaryDTO(totalIssued, statusData.totalSold()));
+        },
+        () -> appStatusTrackRepository.findDistinctYearIdsByCampusIdsFromStatus(campusIds, zoneId)
     ));
+    // 4. Get metrics data with distribution count added to issued count
     analytics.setMetricsData(
         getMetricsData(
-            (yearId) -> appStatusTrackRepository.getMetricsByCampusIdsAndYear(campusIds, yearId),
+            (yearId) -> {
+                // Get AppStatusTrack metrics with app_issued_type_id = 3 (DGM→Campus: for totalApp, appIssued, appAvailable, filtered by campusIds and zoneId)
+                MetricsAggregateDTO statusMetrics = appStatusTrackRepository.getMetricsByCampusIdsAndYearForDgm(campusIds, zoneId, yearId)
+                    .orElse(new MetricsAggregateDTO());
+                // Get sold, confirmed, unavailable, damaged with app_issued_type_id = 4 (Campus/PRO, filtered by campusIds and zoneId)
+                MetricsAggregateDTO proMetrics = appStatusTrackRepository.getSoldConfirmedUnavailableDamagedByCampusIdsAndYearForDgm(campusIds, zoneId, yearId)
+                    .orElse(new MetricsAggregateDTO());
+                // Get admin-to-campus distribution count (Admin→Campus: issued_by_type_id = 1, issued_to_type_id = 4, filtered by campusIds)
+                // Do NOT include Zone distributions (Zone→DGM, Zone→Campus) as per user request
+                Integer adminToCampusDist = distributionRepository.sumAdminToCampusDistributionByCampusIdsAndYear(campusIds, yearId)
+                    .orElse(0);
+                // Combine: totalApp and issued from app_issued_type_id = 3 (DGM→Campus) + Admin→Campus distribution, 
+                // sold/confirmed/unavailable/damaged from app_issued_type_id = 4 (Campus/PRO)
+                return Optional.of(new MetricsAggregateDTO(
+                    statusMetrics.totalApp() + adminToCampusDist, // Add Admin→Campus distribution to grand total
+                    proMetrics.appSold(), // From app_issued_type_id = 4
+                    proMetrics.appConfirmed(), // From app_issued_type_id = 4
+                    statusMetrics.appAvailable(), // From app_issued_type_id = 3
+                    proMetrics.appUnavailable(), // From app_issued_type_id = 4
+                    proMetrics.appDamaged(), // From app_issued_type_id = 4
+                    statusMetrics.appIssued() + adminToCampusDist // Add Admin→Campus distribution to issued
+                ));
+            },
             (yearId) -> appStatusTrackRepository.getProMetricByCampusIds_FromStatus(campusIds, yearId),
-            () -> appStatusTrackRepository.findDistinctYearIdsByCampusIds(campusIds)
+            () -> appStatusTrackRepository.findDistinctYearIdsByCampusIdsForDgm(campusIds, zoneId)
         )
     );
     return analytics;
@@ -417,10 +538,11 @@ return analytics;
 // =========================================================================
 private GraphDTO getGraphDataForCampus(Integer campusId) {
     return getGraphData(
-        // Lambda passes 'yearId' to the repo method
-        (yearId) -> userAppSoldRepository.getSalesSummaryByCampusIdAndYear(campusId, yearId),
-        // Supplier gets distinct years
-        () -> userAppSoldRepository.findDistinctYearIdsByCampusId(campusId)
+        (yearId) -> {
+            Optional<MetricsAggregateDTO> metrics = appStatusTrackRepository.getMetricsByCampusIdAndYear(campusId, yearId);
+            return metrics.map(m -> new GraphSoldSummaryDTO(m.appIssued(), m.appSold()));
+        },
+        () -> appStatusTrackRepository.findDistinctYearIdsByCampusId(campusId)
     );
 }
 private MetricsDataDTO getMetricsDataForCampus(Integer campusId) {
@@ -435,10 +557,11 @@ private MetricsDataDTO getMetricsDataForCampus(Integer campusId) {
 }
 private GraphDTO getGraphDataForCampuses(List<Integer> campusIds) {
     return getGraphData(
-        // Lambda passes 'yearId' and the LIST of campusIds
-        (yearId) -> userAppSoldRepository.getSalesSummaryByCampusIdsAndYear(campusIds, yearId),
-        // Supplier gets distinct years for ALL campuses in the list
-        () -> userAppSoldRepository.findDistinctYearIdsByCampusIds(campusIds)
+        (yearId) -> {
+            Optional<MetricsAggregateDTO> metrics = appStatusTrackRepository.getMetricsByCampusIdsAndYear(campusIds, yearId);
+            return metrics.map(m -> new GraphSoldSummaryDTO(m.appIssued(), m.appSold()));
+        },
+        () -> appStatusTrackRepository.findDistinctYearIdsByCampusIds(campusIds)
     );
 }
 private MetricsDataDTO getMetricsDataForCampuses(List<Integer> campusIds) {
@@ -456,10 +579,11 @@ private MetricsDataDTO getMetricsDataForCampuses(List<Integer> campusIds) {
 // =========================================================================
 private GraphDTO getGraphDataForZone(Integer zoneId) {
     return getGraphData(
-        // Lambda passes 'yearId' to the repo method
-        (yearId) -> userAppSoldRepository.getSalesSummaryByZoneIdAndYear(zoneId, yearId),
-        // Supplier gets distinct years
-        () -> userAppSoldRepository.findDistinctYearIdsByZoneId(zoneId)
+        (yearId) -> {
+            Optional<MetricsAggregateDTO> metrics = appStatusTrackRepository.getMetricsByZoneIdAndYear(zoneId, yearId);
+            return metrics.map(m -> new GraphSoldSummaryDTO(m.appIssued(), m.appSold()));
+        },
+        () -> appStatusTrackRepository.findDistinctYearIdsByZoneId(zoneId)
     );
 }
 private MetricsDataDTO getMetricsDataForZone(Integer zoneId) {
@@ -662,7 +786,7 @@ MetricsAggregateDTO totalMetrics = curr; // instead of summing every year
      * @param amount Optional amount filter
      * @return List of GraphBarDTO containing year-wise issued and sold data for past 4 years
      */
-    public List<GraphBarDTO> getFlexibleGraphData(Integer zoneId, List<Integer> campusIds, Integer campusId, Float amount) {
+    public List<GraphBarDTO> getFlexibleGraphData(Integer zoneId, List<Integer> campusIds, Integer campusId, Float amount, Integer employeeId) {
         // Get current year (latest year) from AppStatusTrackRepository
         Integer currentYearId = appStatusTrackRepository.findLatestYearId();
         if (currentYearId == null) {
@@ -677,13 +801,37 @@ MetricsAggregateDTO totalMetrics = curr; // instead of summing every year
         // IMPORTANT: 
         // - campusId (singular) uses entity_id = 4 (single campus methods)
         // - campusIds (plural) uses entity_id = 3 (list methods, even for single element)
+        // If employeeId is provided, fetch associated campus IDs for that DGM
+        if (employeeId != null) {
+            List<Integer> dgmCampusIds = dgmRepository.findCampusIdsByEmployeeId(employeeId);
+            if (campusIds == null) {
+                campusIds = new ArrayList<>();
+            }
+            for (Integer dgmCampusId : dgmCampusIds) {
+                if (!campusIds.contains(dgmCampusId)) {
+                    campusIds.add(dgmCampusId);
+                }
+            }
+        }
+        
+        // IMPORTANT: Keep campusId (singular) and campusIds (plural) separate
+        // - campusId (singular) uses entity_id = 4 (single campus/PRO)
+        // - campusIds (plural) uses entity_id = 3 (DGM rollup)
+        // Do NOT merge them - handle separately
         boolean hasCampusId = campusId != null;
         boolean hasCampusIds = campusIds != null && !campusIds.isEmpty();
-        boolean hasMultipleCampuses = campusIds != null && campusIds.size() > 1;
-        // DEBUG: Check individual campus data before aggregation (for multiple campuses)
-        if (hasMultipleCampuses) {
-            System.out.println("=== CHECKING INDIVIDUAL CAMPUS DATA ===");
-            for (Integer id : campusIds) {
+        
+        // Only merge for campusIds list (DGM rollup), not for single campusId
+        List<Integer> effectiveCampusIds = new ArrayList<>();
+        if (campusIds != null) effectiveCampusIds.addAll(campusIds);
+        
+        boolean hasCampuses = hasCampusIds; // Only true if campusIds (plural) is provided
+        
+        // DEBUG: Check individual campus data before aggregation (for multiple campuses from campusIds)
+        if (hasCampuses && effectiveCampusIds.size() > 1) {
+            System.out.println("=== DEBUG: CHECKING INDIVIDUAL CAMPUS DATA FOR AGGREGATION (campusIds) ===");
+            System.out.println("Effective Campus IDs: " + effectiveCampusIds);
+            for (Integer id : effectiveCampusIds) {
                 List<Object[]> individualCampusRows;
                 if (amount != null) {
                     individualCampusRows = userAppSoldRepository.getYearWiseIssuedAndSoldByCampusAndAmount(id, amount);
@@ -694,90 +842,84 @@ MetricsAggregateDTO totalMetrics = curr; // instead of summing every year
                 individualCampusRows = individualCampusRows.stream()
                         .filter(row -> yearIds.contains((Integer) row[0]))
                         .collect(java.util.stream.Collectors.toList());
-                System.out.println("Campus ID " + id + " - Individual data:");
+                System.out.println("Campus ID " + id + " - Individual data (filtered by years, entity_id=4):");
                 if (individualCampusRows.isEmpty()) {
-System.out.println(" ⚠️ NO DATA FOUND for Campus ID " + id + " (for the past 4 years)");
+                    System.out.println(" ⚠️ NO DATA FOUND for Campus ID " + id + " (for the past 4 years with current filters)");
                 } else {
                     for (Object[] row : individualCampusRows) {
                         Integer yearId = (Integer) row[0];
                         Long totalAppCount = row[1] != null ? ((Number) row[1]).longValue() : 0L;
                         Long sold = row[2] != null ? ((Number) row[2]).longValue() : 0L;
-System.out.println(" Year ID: " + yearId + " | Issued: " + totalAppCount + " | Sold: " + sold);
+                        System.out.println("  Year ID: " + yearId + " | Issued: " + totalAppCount + " | Sold: " + sold);
                     }
                 }
             }
-            System.out.println("=== END INDIVIDUAL CAMPUS DATA CHECK ===");
+            System.out.println("=== END INDIVIDUAL CAMPUS DATA DEBUG ===");
         }
+        
+        // DEBUG: Log single campusId usage
+        if (hasCampusId && !hasCampuses) {
+            System.out.println("=== DEBUG: SINGLE CAMPUS (campusId) MODE ===");
+            System.out.println("Campus ID: " + campusId + " (entity_id=4, issued = total - available)");
+            System.out.println("=== END SINGLE CAMPUS DEBUG ===");
+        }
+
         // Determine which repository method to call based on provided parameters
         // Priority: Check campusId (singular, entity_id=4) first, then campusIds (plural, entity_id=3)
         if (zoneId != null && hasCampusId && amount != null) {
             // Zone + Single Campus (campusId) + Amount - use single campus method with entity_id = 4
-            System.out.println("Using filter: Zone + Single Campus (campusId) + Amount (zoneId=" + zoneId + ", campusId=" + campusId + ", amount=" + amount + ")");
+            System.out.println("Filter: Zone + Single Campus (campusId) + Amount (zone=" + zoneId + ", campusId=" + campusId + ", amt=" + amount + ")");
             rows = userAppSoldRepository.getYearWiseIssuedAndSoldByZoneCampusAndAmount(zoneId, campusId, amount);
-            rows = rows.stream()
-                    .filter(row -> yearIds.contains((Integer) row[0]))
-                    .collect(java.util.stream.Collectors.toList());
-        } else if (zoneId != null && hasCampusIds && amount != null) {
+        } else if (zoneId != null && hasCampuses && amount != null) {
             // Zone + Campuses (campusIds) + Amount - use list method with entity_id = 3
-            System.out.println("Using filter: Zone + Campuses (campusIds) + Amount (zoneId=" + zoneId + ", campusIds=" + campusIds + ", amount=" + amount + ")");
-            rows = userAppSoldRepository.getYearWiseIssuedAndSoldByZoneCampusListAndAmount(zoneId, campusIds, amount);
-            rows = rows.stream()
-                    .filter(row -> yearIds.contains((Integer) row[0]))
-                    .collect(java.util.stream.Collectors.toList());
+            System.out.println("Filter: Zone + Campuses (campusIds) + Amount (zone=" + zoneId + ", camps=" + effectiveCampusIds + ", amt=" + amount + ")");
+            rows = userAppSoldRepository.getYearWiseIssuedAndSoldByZoneCampusListAndAmount(zoneId, effectiveCampusIds, amount);
         } else if (hasCampusId && amount != null) {
             // Single Campus (campusId) + Amount - use single campus method with entity_id = 4
-            System.out.println("Using filter: Single Campus (campusId) + Amount (campusId=" + campusId + ", amount=" + amount + ")");
+            System.out.println("Filter: Single Campus (campusId) + Amount (campusId=" + campusId + ", amt=" + amount + ")");
             rows = userAppSoldRepository.getYearWiseIssuedAndSoldByCampusAndAmount(campusId, amount);
-            rows = rows.stream()
-                    .filter(row -> yearIds.contains((Integer) row[0]))
-                    .collect(java.util.stream.Collectors.toList());
-        } else if (hasCampusIds && amount != null) {
+        } else if (hasCampuses && amount != null) {
             // Campuses (campusIds) + Amount - use list method with entity_id = 3
-            System.out.println("Using filter: Campuses (campusIds) + Amount (campusIds=" + campusIds + ", amount=" + amount + ")");
-            rows = userAppSoldRepository.getYearWiseIssuedAndSoldByCampusListAndAmount(campusIds, amount);
-            rows = rows.stream()
-                    .filter(row -> yearIds.contains((Integer) row[0]))
-                    .collect(java.util.stream.Collectors.toList());
+            System.out.println("Filter: Campuses (campusIds) + Amount (camps=" + effectiveCampusIds + ", amt=" + amount + ")");
+            rows = userAppSoldRepository.getYearWiseIssuedAndSoldByCampusListAndAmount(effectiveCampusIds, amount);
         } else if (zoneId != null && amount != null) {
-            // Zone + Amount
-            System.out.println("Using filter: Zone + Amount (zoneId=" + zoneId + ", amount=" + amount + ")");
+            System.out.println("Filter: Zone + Amount (zone=" + zoneId + ", amt=" + amount + ")");
             rows = userAppSoldRepository.getYearWiseIssuedAndSoldByZoneAndAmount(zoneId, amount);
-            rows = rows.stream()
-                    .filter(row -> yearIds.contains((Integer) row[0]))
-                    .collect(java.util.stream.Collectors.toList());
+        } else if (zoneId != null && hasCampusId) {
+            // Zone + Single Campus (campusId) - use single campus method with entity_id = 4
+            System.out.println("Filter: Zone + Single Campus (campusId) (zone=" + zoneId + ", campusId=" + campusId + ")");
+            rows = userAppSoldRepository.getYearWiseIssuedAndSoldByZoneCampus(zoneId, campusId);
+        } else if (zoneId != null && hasCampuses) {
+            // Zone + Campuses (campusIds) - use list method with entity_id = 3
+            System.out.println("Filter: Zone + Campuses (campusIds) (zone=" + zoneId + ", camps=" + effectiveCampusIds + ")");
+            rows = userAppSoldRepository.getYearWiseIssuedAndSoldByZoneCampusList(zoneId, effectiveCampusIds);
         } else if (hasCampusId) {
             // Single Campus (campusId) only - use single campus method with entity_id = 4
-            System.out.println("Using filter: Single Campus (campusId) (campusId=" + campusId + ")");
+            System.out.println("Filter: Single Campus (campusId) (campusId=" + campusId + ")");
             rows = userAppSoldRepository.getYearWiseIssuedAndSoldByCampus(campusId);
-            rows = rows.stream()
-                    .filter(row -> yearIds.contains((Integer) row[0]))
-                    .collect(java.util.stream.Collectors.toList());
-        } else if (hasCampusIds) {
+        } else if (hasCampuses) {
             // Campuses (campusIds) only - use list method with entity_id = 3
-            System.out.println("Using filter: Campuses (campusIds) (campusIds=" + campusIds + ")");
-            rows = userAppSoldRepository.getYearWiseIssuedAndSoldByCampusList(campusIds);
-            rows = rows.stream()
-                    .filter(row -> yearIds.contains((Integer) row[0]))
-                    .collect(java.util.stream.Collectors.toList());
+            System.out.println("Filter: Campuses (campusIds) (camps=" + effectiveCampusIds + ")");
+            rows = userAppSoldRepository.getYearWiseIssuedAndSoldByCampusList(effectiveCampusIds);
         } else if (zoneId != null) {
-            // Zone only - need to filter by yearIds manually
+            System.out.println("Filter: Zone (zone=" + zoneId + ")");
             rows = userAppSoldRepository.getYearWiseIssuedAndSoldByZone(zoneId);
-            rows = rows.stream()
-                    .filter(row -> yearIds.contains((Integer) row[0]))
-                    .collect(java.util.stream.Collectors.toList());
         } else if (amount != null) {
-            // Amount only - need to filter by yearIds manually
+            System.out.println("Filter: Amount (amt=" + amount + ")");
             rows = userAppSoldRepository.getYearWiseIssuedAndSoldByAmount(amount);
-            rows = rows.stream()
-                    .filter(row -> yearIds.contains((Integer) row[0]))
-                    .collect(java.util.stream.Collectors.toList());
         } else {
-            // No filters - get all data and filter by yearIds
-            rows = userAppSoldRepository.getYearWiseIssuedAndSold();
-            rows = rows.stream()
-                    .filter(row -> yearIds.contains((Integer) row[0]))
-                    .collect(java.util.stream.Collectors.toList());
+            System.out.println("Filter: All Time Aggregate");
+            // switch to AppStatusTrack
+            rows = appStatusTrackRepository.getYearWiseMetricsAllTime();
         }
+
+        // Apply year filtering
+        System.out.println("Raw rows from DB before year filtering: " + rows.size());
+        rows = rows.stream()
+                .filter(row -> yearIds.contains((Integer) row[0]))
+                .collect(java.util.stream.Collectors.toList());
+        System.out.println("Rows after year filtering (for years: " + yearIds + "): " + rows.size());
+
         // Get AcademicYear entities for year labels
         List<AcademicYear> academicYears = academicYearRepository.findByAcdcYearIdIn(yearIds);
         java.util.Map<Integer, AcademicYear> yearMap = academicYears.stream()
@@ -813,6 +955,25 @@ System.out.println(" Year ID: " + yearId + " | Issued (totalAppCount): " + total
             Long totalAppCount = row[1] != null ? ((Number) row[1]).longValue() : 0L;
             Long sold = row[2] != null ? ((Number) row[2]).longValue() : 0L;
             yearDataMap.put(yearId, new long[]{totalAppCount, sold});
+        }
+        
+        // If zoneId is present, add Admin→DGM and Admin→Campus distributions to issued count for each year
+        if (zoneId != null) {
+            for (Integer yearId : yearIds) {
+                // Get distribution counts for this year
+                Integer adminToDgmDist = distributionRepository.sumAdminToDgmDistributionByZoneAndYear(zoneId, yearId).orElse(0);
+                Integer adminToCampusDist = distributionRepository.sumAdminToCampusDistributionByZoneAndYear(zoneId, yearId).orElse(0);
+                
+                // Add distributions to issued count
+                long[] data = yearDataMap.getOrDefault(yearId, new long[]{0L, 0L});
+                long updatedIssued = data[0] + adminToDgmDist + adminToCampusDist;
+                yearDataMap.put(yearId, new long[]{updatedIssued, data[1]});
+                
+                if (adminToDgmDist > 0 || adminToCampusDist > 0) {
+                    System.out.println("Zone " + zoneId + " Year " + yearId + ": Added Admin→DGM: " + adminToDgmDist + 
+                                     ", Admin→Campus: " + adminToCampusDist + " to issued count");
+                }
+            }
         }
         // Log aggregated data summary
         if (campusIds != null && campusIds.size() > 1) {
