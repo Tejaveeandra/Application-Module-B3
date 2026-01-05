@@ -230,8 +230,54 @@ public interface AppStatusTrackRepository extends JpaRepository<AppStatusTrack, 
     List<Integer> findDistinctYearIdsByEmployee(@Param("empId") Integer empId);
  
     @Query("SELECT DISTINCT ast.academicYear.acdcYearId FROM AppStatusTrack ast WHERE ast.campus.id = :campusId")
- 
+
     List<Integer> findDistinctYearIdsByCampus(@Param("campusId") Long campusId);
+    
+    // Method for campus analytics - returns all metrics with app_issued_type_id = 4
+    // Filters: app_issued_type_id = 4, campusId, is_active = 1
+    @Query("SELECT NEW com.application.dto.MetricsAggregateDTO(" +
+           "COALESCE(SUM(a.totalApp), 0), " +
+           "COALESCE(SUM(a.appSold), 0), " +
+           "COALESCE(SUM(a.appConfirmed), 0), " +
+           "COALESCE(SUM(a.appAvailable), 0), " +
+           "COALESCE(SUM(a.appUnavailable), 0), " +
+           "COALESCE(SUM(a.appDamaged), 0), " +
+           "COALESCE(SUM(a.appIssued), 0)) " +
+           "FROM AppStatusTrack a " +
+           "INNER JOIN a.issuedByType ibt " +
+           "WHERE a.campus.id = :campusId " +
+           "AND a.academicYear.acdcYearId = :yearId " +
+           "AND a.isActive = 1 " +
+           "AND ibt.appIssuedId = 4")
+    Optional<MetricsAggregateDTO> getMetricsByCampusAndYearWithType4(
+            @Param("campusId") Long campusId,
+            @Param("yearId") Integer yearId
+    );
+    
+    // Method for campus graph data - returns issued and sold with app_issued_type_id = 4
+    // Filters: app_issued_type_id = 4, campusId, is_active = 1
+    @Query("SELECT NEW com.application.dto.GraphSoldSummaryDTO(" +
+           "COALESCE(SUM(a.appIssued), 0), " +
+           "COALESCE(SUM(a.appSold), 0)) " +
+           "FROM AppStatusTrack a " +
+           "INNER JOIN a.issuedByType ibt " +
+           "WHERE a.campus.id = :campusId " +
+           "AND a.academicYear.acdcYearId = :yearId " +
+           "AND a.isActive = 1 " +
+           "AND ibt.appIssuedId = 4")
+    Optional<GraphSoldSummaryDTO> getSalesSummaryByCampusAndYearWithType4(
+            @Param("campusId") Long campusId,
+            @Param("yearId") Integer yearId
+    );
+    
+    // Method to find distinct years for campus analytics with app_issued_type_id = 4
+    @Query("SELECT DISTINCT a.academicYear.acdcYearId " +
+           "FROM AppStatusTrack a " +
+           "INNER JOIN a.issuedByType ibt " +
+           "WHERE a.campus.id = :campusId " +
+           "AND a.isActive = 1 " +
+           "AND ibt.appIssuedId = 4")
+    List<Integer> findDistinctYearIdsByCampusWithType4(@Param("campusId") Long campusId);
  
     // --- NEW: Method for a LIST of campuses (DGM-Rollup) ---
  
@@ -593,6 +639,25 @@ public interface AppStatusTrackRepository extends JpaRepository<AppStatusTrack, 
                      @Param("yearId") Integer yearId
              );
   
+             // Method for DGM graph data - returns totalApp and appAvailable from AppStatusTrack with app_issued_type_id = 4
+             // Filters: app_issued_type_id = 4, campusIds, zoneId, is_active = 1
+             // Returns: [totalApp, appAvailable] - Issued will be calculated as totalApp - appAvailable
+             @Query("SELECT " +
+                    "COALESCE(SUM(a.totalApp), 0), " +
+                    "COALESCE(SUM(a.appAvailable), 0) " +
+                    "FROM AppStatusTrack a " +
+                    "INNER JOIN a.issuedByType ibt " +
+                    "WHERE a.campus.id IN :campusIds " +
+                    "AND a.zone.id = :zoneId " +
+                    "AND a.academicYear.id = :yearId " +
+                    "AND a.isActive = 1 " +
+                    "AND ibt.appIssuedId = 4")
+             Optional<Object[]> getTotalAppAndAvailableByCampusIdsAndYearForDgmGraph(
+                     @Param("campusIds") List<Integer> campusIds,
+                     @Param("zoneId") Integer zoneId,
+                     @Param("yearId") Integer yearId
+             );
+  
              @Query("SELECT COALESCE(SUM(a.appAvailable), 0) " +
                     "FROM AppStatusTrack a " +
                     "WHERE a.campus.id IN :campusIds " +
@@ -616,6 +681,19 @@ public interface AppStatusTrackRepository extends JpaRepository<AppStatusTrack, 
                     "AND a.isActive = 1 " +
                     "AND ibt.appIssuedId = 3")
              List<Integer> findDistinctYearIdsByCampusIdsForDgm(
+                     @Param("campusIds") List<Integer> campusIds,
+                     @Param("zoneId") Integer zoneId
+             );
+             
+             // Method for DGM graph data - find distinct years with app_issued_type_id = 4 (Campus/PRO)
+             @Query("SELECT DISTINCT a.academicYear.acdcYearId " +
+                    "FROM AppStatusTrack a " +
+                    "INNER JOIN a.issuedByType ibt " +
+                    "WHERE a.campus.id IN :campusIds " +
+                    "AND a.zone.id = :zoneId " +
+                    "AND a.isActive = 1 " +
+                    "AND ibt.appIssuedId = 4")
+             List<Integer> findDistinctYearIdsByCampusIdsForDgmGraph(
                      @Param("campusIds") List<Integer> campusIds,
                      @Param("zoneId") Integer zoneId
              );

@@ -156,5 +156,44 @@ public interface DistributionRepository extends JpaRepository<Distribution, Inte
 		    @Param("campusIds") List<Integer> campusIds,
 		    @Param("yearId") Integer yearId
 		);
+		
+		// Sum total_app_count for zone-to-DGM distributions (issued_by_type_id = 2, issued_to_type_id = 3) by DGM employee ID and year
+		@Query("SELECT COALESCE(SUM(d.totalAppCount), 0) " +
+		       "FROM Distribution d " +
+		       "WHERE d.issuedByType.appIssuedId = 2 " +
+		       "AND d.issuedToType.appIssuedId = 3 " +
+		       "AND d.issued_to_emp_id = :dgmEmpId " +
+		       "AND d.academicYear.acdcYearId = :yearId " +
+		       "AND d.isActive = 1")
+		Optional<Integer> sumZoneToDgmDistributionByEmpIdAndYear(
+		    @Param("dgmEmpId") Integer dgmEmpId,
+		    @Param("yearId") Integer yearId
+		);
+		
+		// Sum total_app_count for zone-to-campus distributions (issued_by_type_id = 2, issued_to_type_id = 4) by campusIds and year
+		@Query("SELECT COALESCE(SUM(d.totalAppCount), 0) " +
+		       "FROM Distribution d " +
+		       "WHERE d.issuedByType.appIssuedId = 2 " +
+		       "AND d.issuedToType.appIssuedId = 4 " +
+		       "AND d.campus.campusId IN :campusIds " +
+		       "AND d.academicYear.acdcYearId = :yearId " +
+		       "AND d.isActive = 1")
+		Optional<Integer> sumZoneToCampusDistributionByCampusIdsAndYear(
+		    @Param("campusIds") List<Integer> campusIds,
+		    @Param("yearId") Integer yearId
+		);
+		
+		// Sum total_app_count for admin-to-DGM distributions (issued_by_type_id = 1, issued_to_type_id = 3) by DGM employee ID and year
+		@Query("SELECT COALESCE(SUM(d.totalAppCount), 0) " +
+		       "FROM Distribution d " +
+		       "WHERE d.issuedByType.appIssuedId = 1 " +
+		       "AND d.issuedToType.appIssuedId = 3 " +
+		       "AND d.issued_to_emp_id = :dgmEmpId " +
+		       "AND d.academicYear.acdcYearId = :yearId " +
+		       "AND d.isActive = 1")
+		Optional<Integer> sumAdminToDgmDistributionByEmpIdAndYear(
+		    @Param("dgmEmpId") Integer dgmEmpId,
+		    @Param("yearId") Integer yearId
+		);
 
 }

@@ -298,7 +298,7 @@ public interface UserAppSoldRepository extends JpaRepository<UserAppSold, Long> 
     @Query("""
             SELECT
                 u.acdcYearId,
-                COALESCE(SUM(u.totalAppCount - COALESCE(u.appAvlbCount, 0)), 0),
+                COALESCE(SUM(u.totalAppCount), 0),
                 COALESCE(SUM(u.sold), 0)
             FROM UserAppSold u
             WHERE u.isActive = 1
@@ -358,7 +358,7 @@ public interface UserAppSoldRepository extends JpaRepository<UserAppSold, Long> 
     @Query("""
             SELECT
                 u.acdcYearId,
-                COALESCE(SUM(u.totalAppCount - COALESCE(u.appAvlbCount, 0)), 0),
+                COALESCE(SUM(u.totalAppCount), 0),
                 COALESCE(SUM(u.sold), 0)
             FROM UserAppSold u
             WHERE u.isActive = 1
@@ -373,7 +373,7 @@ public interface UserAppSoldRepository extends JpaRepository<UserAppSold, Long> 
     @Query("""
             SELECT
                 u.acdcYearId,
-                COALESCE(SUM(u.totalAppCount - COALESCE(u.appAvlbCount, 0)), 0),
+                COALESCE(SUM(u.totalAppCount), 0),
                 COALESCE(SUM(u.sold), 0)
             FROM UserAppSold u
             WHERE u.isActive = 1
@@ -389,7 +389,7 @@ public interface UserAppSoldRepository extends JpaRepository<UserAppSold, Long> 
     @Query("""
             SELECT
                 u.acdcYearId,
-                COALESCE(SUM(u.totalAppCount - COALESCE(u.appAvlbCount, 0)), 0),
+                COALESCE(SUM(u.totalAppCount), 0),
                 COALESCE(SUM(u.sold), 0)
             FROM UserAppSold u
             WHERE u.isActive = 1
@@ -462,6 +462,84 @@ public interface UserAppSoldRepository extends JpaRepository<UserAppSold, Long> 
             ORDER BY a.acdcYearId
         """)
     List<Object[]> getYearWiseIssuedAndSoldByZoneCampusListAndAmount(@Param("zoneId") Integer zoneId, @Param("campusIds") List<Integer> campusIds, @Param("amount") Float amount);
+    
+    // ========== NEW METHODS FOR CAMPUSIDS - SOLD WITH ENTITY_ID = 4 ==========
+    // These methods keep issued calculation the same (entityId IN (1, 3))
+    // But change sold calculation to use entity_id = 4 based on campusId
+    // Existing methods (with entity_id = 3) remain unchanged
+    
+    @Query("""
+            SELECT
+                u.acdcYearId,
+                COALESCE(SUM(CASE WHEN u.entityId IN (1, 3) THEN (u.totalAppCount - COALESCE(u.appAvlbCount, 0)) ELSE 0 END), 0),
+                COALESCE(SUM(CASE WHEN u.entityId = 4 THEN u.sold ELSE 0 END), 0)
+            FROM UserAppSold u
+            WHERE u.isActive = 1
+              AND u.entityId IN (1, 3, 4)
+              AND u.campus.campusId IN :campusIds
+            GROUP BY u.acdcYearId
+            ORDER BY u.acdcYearId
+        """)
+    List<Object[]> getYearWiseIssuedAndSoldByCampusListWithEntity4(@Param("campusIds") List<Integer> campusIds);
+    
+    @Query("""
+            SELECT
+                u.acdcYearId,
+                COALESCE(SUM(CASE WHEN u.entityId IN (1, 3) THEN (u.totalAppCount - COALESCE(u.appAvlbCount, 0)) ELSE 0 END), 0),
+                COALESCE(SUM(CASE WHEN u.entityId = 4 THEN u.sold ELSE 0 END), 0)
+            FROM UserAppSold u
+            WHERE u.isActive = 1
+              AND u.entityId IN (1, 3, 4)
+              AND u.zone.zoneId = :zoneId
+              AND u.campus.campusId IN :campusIds
+            GROUP BY u.acdcYearId
+            ORDER BY u.acdcYearId
+        """)
+    List<Object[]> getYearWiseIssuedAndSoldByZoneCampusListWithEntity4(@Param("zoneId") Integer zoneId, @Param("campusIds") List<Integer> campusIds);
+    
+    @Query("""
+            SELECT
+                u.acdcYearId,
+                COALESCE(SUM(CASE WHEN u.entityId IN (1, 3) THEN (u.totalAppCount - COALESCE(u.appAvlbCount, 0)) ELSE 0 END), 0),
+                COALESCE(SUM(CASE WHEN u.entityId = 4 THEN u.sold ELSE 0 END), 0)
+            FROM UserAppSold u
+            WHERE u.isActive = 1
+              AND u.entityId IN (1, 3, 4)
+              AND u.campus.campusId IN :campusIds
+              AND u.amount = :amount
+            GROUP BY u.acdcYearId
+            ORDER BY u.acdcYearId
+        """)
+    List<Object[]> getYearWiseIssuedAndSoldByCampusListAndAmountWithEntity4(@Param("campusIds") List<Integer> campusIds, @Param("amount") Float amount);
+    
+    @Query("""
+            SELECT
+                a.acdcYearId,
+                COALESCE(SUM(CASE WHEN a.entityId IN (1, 3) THEN (a.totalAppCount - COALESCE(a.appAvlbCount, 0)) ELSE 0 END), 0),
+                COALESCE(SUM(CASE WHEN a.entityId = 4 THEN a.sold ELSE 0 END), 0)
+            FROM UserAppSold a
+            WHERE a.isActive = 1
+              AND a.entityId IN (1, 3, 4)
+              AND a.zone.zoneId = :zoneId
+              AND a.campus.campusId IN :campusIds
+              AND a.amount = :amount
+            GROUP BY a.acdcYearId
+            ORDER BY a.acdcYearId
+        """)
+    List<Object[]> getYearWiseIssuedAndSoldByZoneCampusListAndAmountWithEntity4(@Param("zoneId") Integer zoneId, @Param("campusIds") List<Integer> campusIds, @Param("amount") Float amount);
+    
+    @Query("SELECT NEW com.application.dto.GraphSoldSummaryDTO(" +
+           "COALESCE(SUM(CASE WHEN u.entityId IN (1, 3) THEN (u.totalAppCount - COALESCE(u.appAvlbCount, 0)) ELSE 0 END), 0), " +
+           "COALESCE(SUM(CASE WHEN u.entityId = 4 THEN u.sold ELSE 0 END), 0)) " +
+           "FROM UserAppSold u " +
+           "WHERE u.isActive = 1 " +
+           "AND u.entityId IN (1, 3, 4) " +
+           "AND u.campus.campusId IN :campusIds " +
+           "AND u.acdcYearId = :acdcYearId")
+    Optional<GraphSoldSummaryDTO> getSalesSummaryByCampusListWithEntity4(
+            @Param("campusIds") List<Integer> campusIds,
+            @Param("acdcYearId") Integer acdcYearId
+    );
     
     @Query("SELECT u.acdcYearId, SUM(u.sold), SUM(u.amount) " +
             "FROM UserAppSold u WHERE u.campus.id = :campusId GROUP BY u.acdcYearId")

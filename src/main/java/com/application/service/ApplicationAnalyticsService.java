@@ -222,14 +222,16 @@ return getCampusDirectAnalytics(employee);
                     System.out.println("----------------------------------------");
                     System.out.println("📊 TOTAL APPLICATIONS FROM AppStatusTrack:");
                     System.out.println("   totalApp (app_issued_type_id = 2 - Zone): " + statusMetrics.totalApp());
+                    System.out.println("   appIssued (app_issued_type_id = 2 - Zone): " + statusMetrics.appIssued());
                     System.out.println("----------------------------------------");
                     System.out.println("📦 DISTRIBUTION TABLE COUNTS (Direct Admin Distributions):");
-                    System.out.println("   Admin → Zone: " + adminToZoneDist);
+                    System.out.println("   Admin → Zone: " + adminToZoneDist + " (NOT added - already in AppStatusTrack)");
                     System.out.println("   Admin → DGM (Direct): " + adminToDgmDist + " (ADDED to totalApp and issued)");
                     System.out.println("   Admin → Campus (Direct): " + adminToCampusDist + " (ADDED to totalApp and issued)");
                     System.out.println("----------------------------------------");
                     
                     // Add Admin→DGM and Admin→Campus distributions to issued and totalApp
+                    // Note: Admin→Zone is NOT added because it's already reflected in AppStatusTrack Type 2
                     long totalIssued = statusMetrics.appIssued() + adminToDgmDist + adminToCampusDist;
                     long totalApp = statusMetrics.totalApp() + adminToDgmDist + adminToCampusDist;
                     
@@ -244,6 +246,14 @@ return getCampusDirectAnalytics(employee);
                     System.out.println("     - Admin → DGM Distribution (Direct): " + adminToDgmDist);
                     System.out.println("     - Admin → Campus Distribution (Direct): " + adminToCampusDist);
                     System.out.println("     - TOTAL ISSUED: " + totalIssued);
+                    System.out.println("----------------------------------------");
+                    System.out.println("🔍 VERIFICATION:");
+                    System.out.println("   If DGM Total = 610, Zone Total should include:");
+                    System.out.println("     - DGM's AppStatusTrack Type 3 (310) should NOT be in Zone");
+                    System.out.println("     - DGM's Admin→DGM (100) SHOULD be in Zone: " + adminToDgmDist);
+                    System.out.println("     - DGM's Admin→Campus (200) SHOULD be in Zone: " + adminToCampusDist);
+                    System.out.println("     - Zone's own AppStatusTrack Type 2: " + statusMetrics.totalApp());
+                    System.out.println("     - Expected Zone Total: " + statusMetrics.totalApp() + " + " + adminToDgmDist + " + " + adminToCampusDist + " = " + totalApp);
                     System.out.println("========================================");
                     
                     // Return metrics with added distribution counts
@@ -305,46 +315,103 @@ public CombinedAnalyticsDTO getEmployeeAnalytics(Long empId) {
     }
     
     CombinedAnalyticsDTO analytics = new CombinedAnalyticsDTO();
-    // 3. Use AppStatusTrack for graph data (issued and sold) with filters: app_issued_type_id = 3, is_active = 1, zone_id
-    // Also include admin-to-campus distribution count in issued (from Distribution table, filtered by campusIds)
+    // 3. Use AppStatusTrack for graph data with app_issued_type_id = 4 (Campus/PRO)
+    // Calculate issued as totalApp - appAvailable, then add distributions with issued_to_type_id = 4
     analytics.setGraphData(getGraphData(
         (yearId) -> {
-            // Get AppStatusTrack issued and sold (DGM→Campus: app_issued_type_id = 3, filtered by campusIds and zoneId)
-            GraphSoldSummaryDTO statusData = appStatusTrackRepository.getSalesSummaryByCampusIdsAndYearFromStatus(campusIds, zoneId, yearId)
-                .orElse(new GraphSoldSummaryDTO(0L, 0L));
+            // Get totalApp and appAvailable from AppStatusTrack with app_issued_type_id = 4 (Campus/PRO, filtered by campusIds and zoneId)
+            Optional<Object[]> totalAppAndAvailable = appStatusTrackRepository.getTotalAppAndAvailableByCampusIdsAndYearForDgmGraph(campusIds, zoneId, yearId);
+            long totalApp = 0L;
+            long appAvailable = 0L;
+            if (totalAppAndAvailable.isPresent()) {
+                Object[] result = totalAppAndAvailable.get();
+                totalApp = ((Number) result[0]).longValue();
+                appAvailable = ((Number) result[1]).longValue();
+            }
+            // Calculate issued as totalApp - appAvailable (entity_id = 4)
+            long issuedFromStatus = totalApp - appAvailable;
             // Get admin-to-campus distribution count (Admin→Campus: issued_by_type_id = 1, issued_to_type_id = 4, filtered by campusIds)
             Integer adminToCampusDist = distributionRepository.sumAdminToCampusDistributionByCampusIdsAndYear(campusIds, yearId)
                 .orElse(0);
-            // Add distribution count to issued
-            long totalIssued = statusData.totalApplications() + adminToCampusDist;
-            return Optional.of(new GraphSoldSummaryDTO(totalIssued, statusData.totalSold()));
+            // Get zone-to-campus distribution count (Zone→Campus: issued_by_type_id = 2, issued_to_type_id = 4, filtered by campusIds)
+            Integer zoneToCampusDist = distributionRepository.sumZoneToCampusDistributionByCampusIdsAndYear(campusIds, yearId)
+                .orElse(0);
+            // Add distribution counts to issued (ONLY issued_to_type_id = 4: Admin→Campus + Zone→Campus)
+            // Note: Admin→DGM (issued_to_type_id = 3) is NOT included in issued count
+            long totalIssued = issuedFromStatus + adminToCampusDist + zoneToCampusDist;
+            // Get sold count from AppStatusTrack with app_issued_type_id = 4
+            MetricsAggregateDTO proMetrics = appStatusTrackRepository.getSoldConfirmedUnavailableDamagedByCampusIdsAndYearForDgm(campusIds, zoneId, yearId)
+                .orElse(new MetricsAggregateDTO());
+            return Optional.of(new GraphSoldSummaryDTO(totalIssued, proMetrics.appSold()));
         },
-        () -> appStatusTrackRepository.findDistinctYearIdsByCampusIdsFromStatus(campusIds, zoneId)
+        () -> {
+            // Find distinct years from AppStatusTrack with app_issued_type_id = 4 (Campus/PRO) for graph data
+            return appStatusTrackRepository.findDistinctYearIdsByCampusIdsForDgmGraph(campusIds, zoneId);
+        }
     ));
     // 4. Get metrics data with distribution count added to issued count
     analytics.setMetricsData(
         getMetricsData(
             (yearId) -> {
                 // Get AppStatusTrack metrics with app_issued_type_id = 3 (DGM→Campus: for totalApp, appIssued, appAvailable, filtered by campusIds and zoneId)
+                // totalApp is taken from AppStatusTrack where app_issued_type_id = 3 and campus_id IN campusIds (e.g., 932)
                 MetricsAggregateDTO statusMetrics = appStatusTrackRepository.getMetricsByCampusIdsAndYearForDgm(campusIds, zoneId, yearId)
                     .orElse(new MetricsAggregateDTO());
                 // Get sold, confirmed, unavailable, damaged with app_issued_type_id = 4 (Campus/PRO, filtered by campusIds and zoneId)
                 MetricsAggregateDTO proMetrics = appStatusTrackRepository.getSoldConfirmedUnavailableDamagedByCampusIdsAndYearForDgm(campusIds, zoneId, yearId)
                     .orElse(new MetricsAggregateDTO());
                 // Get admin-to-campus distribution count (Admin→Campus: issued_by_type_id = 1, issued_to_type_id = 4, filtered by campusIds)
-                // Do NOT include Zone distributions (Zone→DGM, Zone→Campus) as per user request
                 Integer adminToCampusDist = distributionRepository.sumAdminToCampusDistributionByCampusIdsAndYear(campusIds, yearId)
                     .orElse(0);
-                // Combine: totalApp and issued from app_issued_type_id = 3 (DGM→Campus) + Admin→Campus distribution, 
-                // sold/confirmed/unavailable/damaged from app_issued_type_id = 4 (Campus/PRO)
+                // Get zone-to-campus distribution count (Zone→Campus: issued_by_type_id = 2, issued_to_type_id = 4, filtered by campusIds)
+                Integer zoneToCampusDist = distributionRepository.sumZoneToCampusDistributionByCampusIdsAndYear(campusIds, yearId)
+                    .orElse(0);
+                
+                // Display detailed breakdown for DGM Total Applications Calculation
+                System.out.println("========================================");
+                System.out.println("📊 DGM TOTAL APPLICATIONS CALCULATION");
+                System.out.println("========================================");
+                System.out.println("Employee ID: " + empIdInt);
+                System.out.println("Zone ID: " + zoneId);
+                System.out.println("Campus IDs: " + campusIds);
+                System.out.println("Academic Year ID: " + yearId);
+                System.out.println("----------------------------------------");
+                System.out.println("📈 TOTAL APPLICATIONS FROM AppStatusTrack:");
+                System.out.println("   totalApp (app_issued_type_id = 3, campusIds): " + statusMetrics.totalApp());
+                System.out.println("----------------------------------------");
+                System.out.println("📦 DISTRIBUTION TABLE COUNTS (ONLY issued_to_type_id = 4):");
+                System.out.println("   Admin → Campus: " + adminToCampusDist + " (ADDED to totalApp AND issued)");
+                System.out.println("   Zone → Campus: " + zoneToCampusDist + " (ADDED to totalApp AND issued)");
+                System.out.println("   Note: Admin→DGM is NOT added (data comes from AppStatusTrack)");
+                System.out.println("----------------------------------------");
+                
+                // Combine: totalApp includes AppStatusTrack + distributions with issued_to_type_id = 4 (Admin→Campus + Zone→Campus)
+                // Issued count includes AppStatusTrack + distributions with issued_to_type_id = 4 (Admin→Campus + Zone→Campus)
+                // Note: Admin→DGM is NOT added because it's already included in AppStatusTrack data
+                long totalDistCount = adminToCampusDist + zoneToCampusDist; // Only issued_to_type_id = 4
+                long finalTotalApp = statusMetrics.totalApp() + totalDistCount;
+                
+                System.out.println("✅ FINAL DGM CALCULATION:");
+                System.out.println("   Total Applications:");
+                System.out.println("     - From AppStatusTrack (Type 3): " + statusMetrics.totalApp());
+                System.out.println("     - Admin → Campus Distribution: " + adminToCampusDist + " (issued_to_type_id = 4)");
+                System.out.println("     - Zone → Campus Distribution: " + zoneToCampusDist + " (issued_to_type_id = 4)");
+                System.out.println("     - TOTAL APPLICATIONS: " + finalTotalApp);
+                System.out.println("   Issued Count (ONLY issued_to_type_id = 4):");
+                System.out.println("     - From AppStatusTrack (Type 3): " + statusMetrics.appIssued());
+                System.out.println("     - Admin → Campus Distribution: " + adminToCampusDist + " (issued_to_type_id = 4)");
+                System.out.println("     - Zone → Campus Distribution: " + zoneToCampusDist + " (issued_to_type_id = 4)");
+                System.out.println("     - TOTAL ISSUED: " + (statusMetrics.appIssued() + totalDistCount));
+                System.out.println("========================================");
+                
                 return Optional.of(new MetricsAggregateDTO(
-                    statusMetrics.totalApp() + adminToCampusDist, // Add Admin→Campus distribution to grand total
+                    finalTotalApp, // Add ONLY issued_to_type_id = 4 distributions (Admin→Campus + Zone→Campus) to grand total
                     proMetrics.appSold(), // From app_issued_type_id = 4
                     proMetrics.appConfirmed(), // From app_issued_type_id = 4
                     statusMetrics.appAvailable(), // From app_issued_type_id = 3
                     proMetrics.appUnavailable(), // From app_issued_type_id = 4
                     proMetrics.appDamaged(), // From app_issued_type_id = 4
-                    statusMetrics.appIssued() + adminToCampusDist // Add Admin→Campus distribution to issued
+                    statusMetrics.appIssued() + totalDistCount // Add ONLY issued_to_type_id = 4 distributions (Admin→Campus + Zone→Campus) to issued
                 ));
             },
             (yearId) -> appStatusTrackRepository.getProMetricByCampusIds_FromStatus(campusIds, yearId),
@@ -355,18 +422,17 @@ public CombinedAnalyticsDTO getEmployeeAnalytics(Long empId) {
 }
     public CombinedAnalyticsDTO getCampusAnalytics(Long campusId) {
         CombinedAnalyticsDTO analytics = new CombinedAnalyticsDTO();
-        // Convert Long to Integer for the Repo calls
-        Integer campusIdInt = campusId.intValue();
+        // Use AppStatusTrack with app_issued_type_id = 4 for campus analytics
         analytics.setGraphData(getGraphData(
-            (yearId) -> userAppSoldRepository.getSalesSummaryByCampus(campusIdInt, yearId),
-            () -> userAppSoldRepository.findDistinctYearIdsByCampus(campusIdInt)
+            (yearId) -> appStatusTrackRepository.getSalesSummaryByCampusAndYearWithType4(campusId, yearId),
+            () -> appStatusTrackRepository.findDistinctYearIdsByCampusWithType4(campusId)
         ));
         analytics.setMetricsData(
             getMetricsData(
-                (yearId) -> appStatusTrackRepository.getMetricsByCampusAndYear(campusId, yearId),
-                // CHANGE IS HERE: Use AppStatusTrack repo
-                (yearId) -> appStatusTrackRepository.getProMetricByCampusId_FromStatus(campusIdInt, yearId),
-                () -> appStatusTrackRepository.findDistinctYearIdsByCampus(campusId)
+                (yearId) -> appStatusTrackRepository.getMetricsByCampusAndYearWithType4(campusId, yearId),
+                // Use AppStatusTrack repo with app_issued_type_id = 4
+                (yearId) -> appStatusTrackRepository.getProMetricByCampusId_FromStatus(campusId.intValue(), yearId),
+                () -> appStatusTrackRepository.findDistinctYearIdsByCampusWithType4(campusId)
             )
         );
         return analytics;
@@ -871,17 +937,17 @@ MetricsAggregateDTO totalMetrics = curr; // instead of summing every year
             System.out.println("Filter: Zone + Single Campus (campusId) + Amount (zone=" + zoneId + ", campusId=" + campusId + ", amt=" + amount + ")");
             rows = userAppSoldRepository.getYearWiseIssuedAndSoldByZoneCampusAndAmount(zoneId, campusId, amount);
         } else if (zoneId != null && hasCampuses && amount != null) {
-            // Zone + Campuses (campusIds) + Amount - use list method with entity_id = 3
-            System.out.println("Filter: Zone + Campuses (campusIds) + Amount (zone=" + zoneId + ", camps=" + effectiveCampusIds + ", amt=" + amount + ")");
-            rows = userAppSoldRepository.getYearWiseIssuedAndSoldByZoneCampusListAndAmount(zoneId, effectiveCampusIds, amount);
+            // Zone + Campuses (campusIds) + Amount - use NEW method with entity_id = 4
+            System.out.println("Filter: Zone + Campuses (campusIds) + Amount (zone=" + zoneId + ", camps=" + effectiveCampusIds + ", amt=" + amount + ") - Using entity_id = 4");
+            rows = userAppSoldRepository.getYearWiseIssuedAndSoldByZoneCampusListAndAmountWithEntity4(zoneId, effectiveCampusIds, amount);
         } else if (hasCampusId && amount != null) {
             // Single Campus (campusId) + Amount - use single campus method with entity_id = 4
             System.out.println("Filter: Single Campus (campusId) + Amount (campusId=" + campusId + ", amt=" + amount + ")");
             rows = userAppSoldRepository.getYearWiseIssuedAndSoldByCampusAndAmount(campusId, amount);
         } else if (hasCampuses && amount != null) {
-            // Campuses (campusIds) + Amount - use list method with entity_id = 3
-            System.out.println("Filter: Campuses (campusIds) + Amount (camps=" + effectiveCampusIds + ", amt=" + amount + ")");
-            rows = userAppSoldRepository.getYearWiseIssuedAndSoldByCampusListAndAmount(effectiveCampusIds, amount);
+            // Campuses (campusIds) + Amount - use NEW method with entity_id = 4
+            System.out.println("Filter: Campuses (campusIds) + Amount (camps=" + effectiveCampusIds + ", amt=" + amount + ") - Using entity_id = 4");
+            rows = userAppSoldRepository.getYearWiseIssuedAndSoldByCampusListAndAmountWithEntity4(effectiveCampusIds, amount);
         } else if (zoneId != null && amount != null) {
             System.out.println("Filter: Zone + Amount (zone=" + zoneId + ", amt=" + amount + ")");
             rows = userAppSoldRepository.getYearWiseIssuedAndSoldByZoneAndAmount(zoneId, amount);
@@ -890,17 +956,17 @@ MetricsAggregateDTO totalMetrics = curr; // instead of summing every year
             System.out.println("Filter: Zone + Single Campus (campusId) (zone=" + zoneId + ", campusId=" + campusId + ")");
             rows = userAppSoldRepository.getYearWiseIssuedAndSoldByZoneCampus(zoneId, campusId);
         } else if (zoneId != null && hasCampuses) {
-            // Zone + Campuses (campusIds) - use list method with entity_id = 3
-            System.out.println("Filter: Zone + Campuses (campusIds) (zone=" + zoneId + ", camps=" + effectiveCampusIds + ")");
-            rows = userAppSoldRepository.getYearWiseIssuedAndSoldByZoneCampusList(zoneId, effectiveCampusIds);
+            // Zone + Campuses (campusIds) - use NEW method with entity_id = 4
+            System.out.println("Filter: Zone + Campuses (campusIds) (zone=" + zoneId + ", camps=" + effectiveCampusIds + ") - Using entity_id = 4");
+            rows = userAppSoldRepository.getYearWiseIssuedAndSoldByZoneCampusListWithEntity4(zoneId, effectiveCampusIds);
         } else if (hasCampusId) {
             // Single Campus (campusId) only - use single campus method with entity_id = 4
             System.out.println("Filter: Single Campus (campusId) (campusId=" + campusId + ")");
             rows = userAppSoldRepository.getYearWiseIssuedAndSoldByCampus(campusId);
         } else if (hasCampuses) {
-            // Campuses (campusIds) only - use list method with entity_id = 3
-            System.out.println("Filter: Campuses (campusIds) (camps=" + effectiveCampusIds + ")");
-            rows = userAppSoldRepository.getYearWiseIssuedAndSoldByCampusList(effectiveCampusIds);
+            // Campuses (campusIds) only - use NEW method with entity_id = 4
+            System.out.println("Filter: Campuses (campusIds) (camps=" + effectiveCampusIds + ") - Using entity_id = 4");
+            rows = userAppSoldRepository.getYearWiseIssuedAndSoldByCampusListWithEntity4(effectiveCampusIds);
         } else if (zoneId != null) {
             System.out.println("Filter: Zone (zone=" + zoneId + ")");
             rows = userAppSoldRepository.getYearWiseIssuedAndSoldByZone(zoneId);
@@ -972,6 +1038,30 @@ System.out.println(" Year ID: " + yearId + " | Issued (totalAppCount): " + total
                 if (adminToDgmDist > 0 || adminToCampusDist > 0) {
                     System.out.println("Zone " + zoneId + " Year " + yearId + ": Added Admin→DGM: " + adminToDgmDist + 
                                      ", Admin→Campus: " + adminToCampusDist + " to issued count");
+                }
+            }
+        }
+        
+        // If campusIds is present (DGM rollup), add Admin→Campus and Zone→Campus distributions to issued count for each year
+        // NOTE: Only distributions with issued_to_type_id = 4 (Campus/PRO) are added to issued count
+        // Admin→DGM (issued_to_type_id = 3) is NOT included in issued count
+        if (hasCampuses && effectiveCampusIds != null && !effectiveCampusIds.isEmpty()) {
+            for (Integer yearId : yearIds) {
+                // Get Admin→Campus distribution (filtered by campusIds, issued_to_type_id = 4)
+                Integer adminToCampusDist = distributionRepository.sumAdminToCampusDistributionByCampusIdsAndYear(effectiveCampusIds, yearId).orElse(0);
+                
+                // Get Zone→Campus distribution (filtered by campusIds, issued_to_type_id = 4)
+                Integer zoneToCampusDist = distributionRepository.sumZoneToCampusDistributionByCampusIdsAndYear(effectiveCampusIds, yearId).orElse(0);
+                
+                // Add ONLY issued_to_type_id = 4 distributions to issued count (Admin→Campus + Zone→Campus)
+                long[] data = yearDataMap.getOrDefault(yearId, new long[]{0L, 0L});
+                long issuedDistCount = adminToCampusDist + zoneToCampusDist; // Only issued_to_type_id = 4
+                long updatedIssued = data[0] + issuedDistCount;
+                yearDataMap.put(yearId, new long[]{updatedIssued, data[1]});
+                
+                if (issuedDistCount > 0) {
+                    System.out.println("CampusIds " + effectiveCampusIds + " Year " + yearId + ": Added Admin→Campus: " + adminToCampusDist + 
+                                     ", Zone→Campus: " + zoneToCampusDist + " (issued_to_type_id = 4 only, Total: " + issuedDistCount + ") to issued count");
                 }
             }
         }
