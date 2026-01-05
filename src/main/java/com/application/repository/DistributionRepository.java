@@ -195,5 +195,19 @@ public interface DistributionRepository extends JpaRepository<Distribution, Inte
 		    @Param("dgmEmpId") Integer dgmEmpId,
 		    @Param("yearId") Integer yearId
 		);
+		
+		// Sum total_app_count for PRO distributions (issued_by_type_id = 4) by PRO employee ID and year
+		// This checks if PRO has distributed applications to others
+		@Query("SELECT COALESCE(SUM(d.totalAppCount), 0) " +
+		       "FROM Distribution d " +
+		       "INNER JOIN d.issuedByType ibt " +
+		       "WHERE d.created_by = :proEmpId " +
+		       "AND d.academicYear.acdcYearId = :yearId " +
+		       "AND d.isActive = 1 " +
+		       "AND ibt.appIssuedId = 4")
+		Optional<Integer> sumProDistributionByEmpIdAndYear(
+		    @Param("proEmpId") Integer proEmpId,
+		    @Param("yearId") Integer yearId
+		);
 
 }

@@ -104,8 +104,7 @@ public class AnalyticsController {
             @RequestParam(required = false) Integer zoneId,
             @RequestParam(required = false) List<Integer> campusIds,
             @RequestParam(required = false) Integer campusId,
-            @RequestParam(required = false) Float amount,
-            @RequestParam(required = false) Integer employeeId) {
+            @RequestParam(required = false) Float amount) {
        
         try {
             // IMPORTANT: campusId (singular) uses entity_id = 4, campusIds (plural) uses entity_id = 3
@@ -125,7 +124,7 @@ public class AnalyticsController {
             System.out.println("Amount: " + amount);
             System.out.println("========================================");
            
-            List<GraphBarDTO> graphData = analyticsService.getFlexibleGraphData(zoneId, campusIds, campusId, amount, employeeId);
+            List<GraphBarDTO> graphData = analyticsService.getFlexibleGraphData(zoneId, campusIds, campusId, amount);
            
             // Log the final response summary
             if (campusIds != null && !campusIds.isEmpty()) {
