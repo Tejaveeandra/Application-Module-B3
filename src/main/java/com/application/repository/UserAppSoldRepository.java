@@ -325,18 +325,9 @@ public interface UserAppSoldRepository extends JpaRepository<UserAppSold, Long> 
     @Query("""
             SELECT
                 u.acdcYearId,
-                COALESCE(SUM(CASE WHEN d.appDistributionId IS NOT NULL THEN (u.totalAppCount - COALESCE(u.appAvlbCount, 0)) ELSE 0 END), 0),
+                COALESCE(SUM(CASE WHEN u.entityId IN (2, 3) THEN (u.totalAppCount - COALESCE(u.appAvlbCount, 0)) ELSE 0 END), 0),
                 COALESCE(SUM(CASE WHEN u.entityId = 4 THEN u.sold ELSE 0 END), 0)
             FROM UserAppSold u
-            LEFT JOIN Distribution d ON (
-                d.zone.zoneId = :zoneId
-                AND d.issuedByType.appIssuedId = 1
-                AND d.isActive = 1
-                AND u.entityId = d.issuedToType.appIssuedId
-                AND u.rangeStartNo >= d.appStartNo
-                AND u.rangeEndNo <= d.appEndNo
-                AND u.acdcYearId = d.academicYear.acdcYearId
-            )
             WHERE u.zone.zoneId = :zoneId
               AND u.amount = :amount
               AND u.isActive = 1
@@ -665,4 +656,12 @@ public interface UserAppSoldRepository extends JpaRepository<UserAppSold, Long> 
   
              @Query("SELECT DISTINCT u.acdcYearId FROM UserAppSold u WHERE u.entityId IN (1, 3, 4) AND u.campus.id IN :campusIds AND u.isActive = 1")
              List<Integer> findDistinctYearIdsByCampusIds(@Param("campusIds") List<Integer> campusIds);
+
+             @Query("SELECT DISTINCT u.empId FROM UserAppSold u WHERE u.zone.zoneId = :zoneId AND u.entityId = 3")
+             List<Integer> findDgmIdsByZoneId(@Param("zoneId") Integer zoneId);
+ 
+             // 2. Get all Campus IDs managed by a specific DGM
+             // Assuming Entity 4 = PRO/Campus level sales tied to that DGM
+             @Query("SELECT DISTINCT u.campus.campusId FROM UserAppSold u WHERE u.empId = :dgmId")
+             List<Integer> findCampusIdsByDgmId(@Param("dgmId") Integer dgmId);
 }

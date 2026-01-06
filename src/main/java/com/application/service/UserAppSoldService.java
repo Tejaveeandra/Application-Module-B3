@@ -60,44 +60,77 @@ public class UserAppSoldService {
 		}).collect(Collectors.toList());
 	}
 
-	public List<RateResponseDTO> getAllRateData(String campusCategory) {
-		System.out.println("--- LOG: STARTING NATIVE RATE CALCULATION" + (campusCategory != null ? " WITH CATEGORY: " + campusCategory : "") + " ---");
-		List<RateResponseDTO> responseList = new ArrayList<>();
-
-		List<Object[]> zoneRaw;
-		List<Object[]> dgmRaw;
-		List<Object[]> campusRaw;
-
-		if (campusCategory != null && !campusCategory.trim().isEmpty()) {
-			String category = campusCategory.trim();
-			// Use category filtered queries
-			zoneRaw = userAppSoldRepository.findZonePerformanceNativeByCategory(category);
-			dgmRaw = userAppSoldRepository.findDgmPerformanceNativeByCategory(category);
-			campusRaw = userAppSoldRepository.findCampusPerformanceNativeByCategory(category);
-		} else {
-			// Use standard queries
-			zoneRaw = userAppSoldRepository.findZonePerformanceNative();
-			dgmRaw = userAppSoldRepository.findDgmPerformanceNative();
-			campusRaw = userAppSoldRepository.findCampusPerformanceNative();
-		}
-
-		// 1. ZONES
-		List<PerformanceDTO> zoneData = mapToPerformanceDTO(zoneRaw);
-		responseList.add(processAnalytics("zone", "DISTRIBUTE_ZONE", "Application Drop Rate Zone Wise",
-				"Top Rated Zones", zoneData));
-
-		// 2. DGMS
-		List<PerformanceDTO> dgmData = mapToPerformanceDTO(dgmRaw);
-		responseList.add(
-				processAnalytics("dgm", "DISTRIBUTE_DGM", "Application Drop Rate DGM Wise", "Top Rated DGMs", dgmData));
-
-		// 3. CAMPUSES
-		List<PerformanceDTO> campusData = mapToPerformanceDTO(campusRaw);
-		responseList.add(processAnalytics("campus", "DISTRIBUTE_CAMPUS", "Application Drop Rate Campus Wise",
-				"Top Rated Campuses", campusData));
-
-		return responseList;
+	public List<RateResponseDTO> getAllRateData(String campusCategory, Integer empId) {
+	    System.out.println("--- LOG: STARTING RATE CALCULATION FOR EMP_ID: " + empId + " ---");
+ 
+	    List<Integer> dgmIds = null;
+	    List<Integer> campusIds = null;
+ 
+	    // 1. Determine User Role and Fetch Filter IDs
+	    if (empId != null && empId != 0) {
+	        SCEmployeeEntity employee = scEmployeeRepository.findById(empId).orElse(null);
+ 
+	        if (employee != null) {
+	            String role = employee.getEmpStudApplicationRole();
+	            System.out.println("User Role: " + role);
+ 
+	            // LOGIC: IF ZONE -> Filter DGMs
+	            if ("ZONE".equalsIgnoreCase(role) || "ZONAL_OFFICER".equalsIgnoreCase(role)) {
+	                // Fetch the Zone ID from the employee view
+	                int zoneId = employee.getZoneId();
+	                // Get all DGMs under this Zone
+	                dgmIds = userAppSoldRepository.findDgmIdsByZoneId(zoneId);
+	                System.out.println("Zone Logged In (" + zoneId + "). Fetched DGM IDs: " + dgmIds);
+	            }
+	            // LOGIC: IF DGM -> Filter Campuses
+	            else if ("DGM".equalsIgnoreCase(role) || "DIVISIONAL_OFFICER".equalsIgnoreCase(role)) {
+	                // Get all Campuses under this DGM
+	                campusIds = userAppSoldRepository.findCampusIdsByDgmId(empId);
+	                System.out.println("DGM Logged In (" + empId + "). Fetched Campus IDs: " + campusIds);
+	            }
+	        }
+	    }
+ 
+	    // 2. Pass the calculated IDs to the core logic
+	    return calculateRateDataInternal(campusCategory, dgmIds, campusIds);
 	}
+
+	private List<RateResponseDTO> calculateRateDataInternal(String campusCategory, List<Integer> dgmIds, List<Integer> campusIds) {
+	    String category = (campusCategory != null && !campusCategory.trim().isEmpty()) ? campusCategory.trim() : null;
+	    List<RateResponseDTO> responseList = new ArrayList<>();
+ 
+	    // --- 1. ZONES (Always Global / Category based) ---
+	    List<Object[]> zoneRaw = (category != null)
+	        ? userAppSoldRepository.findZonePerformanceNativeByCategory(category)
+	        : userAppSoldRepository.findZonePerformanceNative();
+	        
+	    responseList.add(processAnalytics("zone", "DISTRIBUTE_ZONE", "Application Drop Rated Zone Wise", "Application Top Rated Zone Wise", mapToPerformanceDTO(zoneRaw)));
+ 
+	    // --- 2. DGMS (Filtered if Zone Logged In) ---
+	    List<Object[]> dgmRaw;
+	    if (dgmIds != null && !dgmIds.isEmpty()) {
+	        dgmRaw = userAppSoldRepository.findDgmPerformanceForZone(dgmIds);
+	    } else {
+	        dgmRaw = (category != null)
+	            ? userAppSoldRepository.findDgmPerformanceNativeByCategory(category)
+	            : userAppSoldRepository.findDgmPerformanceNative();
+	    }
+	    responseList.add(processAnalytics("dgm", "DISTRIBUTE_DGM", "Application Drop Rated DGM Wise", "Application Top Rated DGM Wise", mapToPerformanceDTO(dgmRaw)));
+ 
+	    // --- 3. CAMPUSES (Filtered if DGM Logged In) ---
+	    List<Object[]> campusRaw;
+	    if (campusIds != null && !campusIds.isEmpty()) {
+	        campusRaw = userAppSoldRepository.findCampusPerformanceForDgm(campusIds);
+	    } else {
+	        campusRaw = (category != null)
+	            ? userAppSoldRepository.findCampusPerformanceNativeByCategory(category)
+	            : userAppSoldRepository.findCampusPerformanceNative();
+	    }
+	    responseList.add(processAnalytics("campus", "DISTRIBUTE_CAMPUS", "Application Drop Rated Campus Wise", "Application Top Rated Campus Wise", mapToPerformanceDTO(campusRaw)));
+ 
+	    return responseList;
+	}
+ 
 
 	// --- Helper to convert Native Query Object[] to DTO ---
 	private List<PerformanceDTO> mapToPerformanceDTO(List<Object[]> rawData) {

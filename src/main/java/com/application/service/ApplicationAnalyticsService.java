@@ -1258,7 +1258,11 @@ System.out.println(" Year ID: " + yearId + " | Issued (totalAppCount): " + total
         
         // If zoneId is present, add Admin→DGM and Admin→Campus distributions to issued count for each year
         // UserAppSold query only returns entity_id = 2 (Zone), so we need to add distributions to match zone analytics
-        if (zoneId != null) {
+        // IMPORTANT: When amount filter is present (any value, including 0), use ONLY UserAppSold data
+        // Do NOT add distributions because distributions don't have amount info
+        // Calculate issued as (totalAppCount - appAvlbCount) from UserAppSold only, checking hierarchy and direct distributions
+        if (zoneId != null && amount == null) {
+            // Only add distributions when NO amount filter is present
             for (Integer yearId : yearIds) {
                 // Get distribution counts for this year
                 Integer adminToDgmDist = distributionRepository.sumAdminToDgmDistributionByZoneAndYear(zoneId, yearId).orElse(0);
@@ -1275,12 +1279,18 @@ System.out.println(" Year ID: " + yearId + " | Issued (totalAppCount): " + total
                                      ", Total issued=" + updatedIssued);
                 }
             }
+        } else if (zoneId != null && amount != null) {
+            // When amount filter is present, use ONLY UserAppSold data (totalAppCount - appAvlbCount)
+            // Do NOT add distributions - issued is calculated directly from UserAppSold
+            System.out.println("Zone " + zoneId + " with amount filter (" + amount + "): Using ONLY UserAppSold data (totalAppCount - appAvlbCount), NOT adding distributions");
         }
         
         // If campusIds is present (DGM rollup), add Admin→Campus and Zone→Campus distributions to issued count for each year
         // NOTE: Only distributions with issued_to_type_id = 4 (Campus/PRO) are added to issued count
         // Admin→DGM (issued_to_type_id = 3) is NOT included in issued count
-        if (hasCampuses && effectiveCampusIds != null && !effectiveCampusIds.isEmpty()) {
+        // IMPORTANT: When amount filter is present, use ONLY UserAppSold data, do NOT add distributions
+        if (hasCampuses && effectiveCampusIds != null && !effectiveCampusIds.isEmpty() && amount == null) {
+            // Only add distributions when NO amount filter is present
             for (Integer yearId : yearIds) {
                 // Get Admin→Campus distribution (filtered by campusIds, issued_to_type_id = 4)
                 Integer adminToCampusDist = distributionRepository.sumAdminToCampusDistributionByCampusIdsAndYear(effectiveCampusIds, yearId).orElse(0);
@@ -1299,6 +1309,9 @@ System.out.println(" Year ID: " + yearId + " | Issued (totalAppCount): " + total
                                      ", Zone→Campus: " + zoneToCampusDist + " (issued_to_type_id = 4 only, Total: " + issuedDistCount + ") to issued count");
                 }
             }
+        } else if (hasCampuses && effectiveCampusIds != null && !effectiveCampusIds.isEmpty() && amount != null) {
+            // When amount filter is present, use ONLY UserAppSold data, do NOT add distributions
+            System.out.println("CampusIds " + effectiveCampusIds + " with amount filter (" + amount + "): Using ONLY UserAppSold data, NOT adding distributions");
         }
         // Log aggregated data summary
         if (campusIds != null && campusIds.size() > 1) {
