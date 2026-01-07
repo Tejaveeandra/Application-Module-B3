@@ -275,7 +275,7 @@ public interface UserAppSoldRepository extends JpaRepository<UserAppSold, Long> 
     @Query("""
             SELECT
                 u.acdcYearId,
-                COALESCE(SUM(CASE WHEN u.entityId = 2 THEN (u.totalAppCount - COALESCE(u.appAvlbCount, 0)) ELSE 0 END), 0),
+                COALESCE(SUM(CASE WHEN u.entityId = 2 THEN u.totalAppCount ELSE 0 END), 0),
                 COALESCE(SUM(CASE WHEN u.entityId = 4 THEN u.sold ELSE 0 END), 0)
             FROM UserAppSold u
             WHERE u.zone.zoneId = :zoneId
@@ -453,11 +453,11 @@ public interface UserAppSoldRepository extends JpaRepository<UserAppSold, Long> 
     @Query("""
             SELECT
                 u.acdcYearId,
-                COALESCE(SUM(CASE WHEN u.entityId IN (1, 3) THEN (u.totalAppCount - COALESCE(u.appAvlbCount, 0)) ELSE 0 END), 0),
+                COALESCE(SUM(CASE WHEN u.entityId = 3 THEN u.totalAppCount ELSE 0 END), 0),
                 COALESCE(SUM(CASE WHEN u.entityId = 4 THEN u.sold ELSE 0 END), 0)
             FROM UserAppSold u
             WHERE u.isActive = 1
-              AND u.entityId IN (1, 3, 4)
+              AND u.entityId IN (3, 4)
               AND u.campus.campusId IN :campusIds
             GROUP BY u.acdcYearId
             ORDER BY u.acdcYearId
@@ -511,11 +511,11 @@ public interface UserAppSoldRepository extends JpaRepository<UserAppSold, Long> 
     List<Object[]> getYearWiseIssuedAndSoldByZoneCampusListAndAmountWithEntity4(@Param("zoneId") Integer zoneId, @Param("campusIds") List<Integer> campusIds, @Param("amount") Float amount);
     
     @Query("SELECT NEW com.application.dto.GraphSoldSummaryDTO(" +
-           "COALESCE(SUM(CASE WHEN u.entityId IN (1, 3) THEN (u.totalAppCount - COALESCE(u.appAvlbCount, 0)) ELSE 0 END), 0), " +
+           "COALESCE(SUM(CASE WHEN u.entityId = 3 THEN u.totalAppCount ELSE 0 END), 0), " +
            "COALESCE(SUM(CASE WHEN u.entityId = 4 THEN u.sold ELSE 0 END), 0)) " +
            "FROM UserAppSold u " +
            "WHERE u.isActive = 1 " +
-           "AND u.entityId IN (1, 3, 4) " +
+           "AND u.entityId IN (3, 4) " +
            "AND u.campus.campusId IN :campusIds " +
            "AND u.acdcYearId = :acdcYearId")
     Optional<GraphSoldSummaryDTO> getSalesSummaryByCampusListWithEntity4(
@@ -534,7 +534,7 @@ public interface UserAppSoldRepository extends JpaRepository<UserAppSold, Long> 
     
       @Query("SELECT NEW com.application.dto.GraphSoldSummaryDTO(" +
               "COALESCE(SUM(u.totalAppCount), 0), " +
-              "COALESCE(SUM(CASE WHEN u.entityId = 4 THEN u.sold ELSE 0 END), 0)) " +
+              "COALESCE(SUM(u.sold), 0)) " +
               "FROM UserAppSold u " +
               "WHERE u.campus.id = :campusId " +
               "AND u.acdcYearId = :yearId " +
@@ -576,7 +576,7 @@ public interface UserAppSoldRepository extends JpaRepository<UserAppSold, Long> 
        );
       
        @Query("SELECT NEW com.application.dto.GraphSoldSummaryDTO(" +
-               "COALESCE(SUM(CASE WHEN u.entityId = 2 THEN (u.totalAppCount - COALESCE(u.appAvlbCount, 0)) ELSE 0 END), 0), " +
+               "COALESCE(SUM(CASE WHEN u.entityId = 2 THEN u.totalAppCount ELSE 0 END), 0), " +
                "COALESCE(SUM(CASE WHEN u.entityId = 4 THEN u.sold ELSE 0 END), 0)) " +
                "FROM UserAppSold u " +
                "WHERE u.zone.id = :zoneId " +

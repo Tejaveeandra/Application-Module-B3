@@ -415,7 +415,7 @@ public interface AppStatusTrackRepository extends JpaRepository<AppStatusTrack, 
                   "COALESCE(SUM(CASE WHEN ibt.appIssuedId = 2 THEN a.totalApp ELSE 0 END), 0), " + // totalApp from Type 2 (Zone) only
                   "COALESCE(SUM(CASE WHEN ibt.appIssuedId = 4 THEN a.appSold ELSE 0 END), 0), " +
                   "COALESCE(SUM(CASE WHEN ibt.appIssuedId = 4 THEN a.appConfirmed ELSE 0 END), 0), " +
-                  "COALESCE(SUM(CASE WHEN ibt.appIssuedId = 2 THEN a.appAvailable WHEN ibt.appIssuedId = 4 THEN a.appAvailable ELSE 0 END), 0), " + 
+                  "COALESCE(SUM(CASE WHEN ibt.appIssuedId = 2 THEN a.appAvailable ELSE 0 END), 0), " + // appAvailable ONLY from Type 2 (Zone), not from Type 4
                   "COALESCE(SUM(CASE WHEN ibt.appIssuedId = 4 THEN a.appUnavailable ELSE 0 END), 0), " +
                   "COALESCE(SUM(CASE WHEN ibt.appIssuedId = 4 THEN a.appDamaged ELSE 0 END), 0), " +
                   "COALESCE(SUM(CASE WHEN ibt.appIssuedId = 2 THEN a.appIssued ELSE 0 END), 0)) " + // Only type 2 (Zone) for issued

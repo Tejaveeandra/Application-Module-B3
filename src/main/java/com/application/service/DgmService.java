@@ -1037,6 +1037,12 @@ private void recalculateBalanceForEmployee(int employeeId, int academicYearId, i
             balance.setAppFrom(calculatedAppFrom); // Use calculated start (next available or master start)
             balance.setAppTo(master.getAppToNo());
             balance.setAppAvblCnt(master.getTotalApp() - totalDistributed);
+            // If available count is 0, set is_active = 0 (do not delete)
+            if (balance.getAppAvblCnt() <= 0) {
+                balance.setIsActive(0);
+            } else {
+                balance.setIsActive(1);
+            }
            
             balanceTrackRepository.saveAndFlush(balance);
        
@@ -1093,7 +1099,16 @@ private void rebuildBalancesFromDistributions(int empId, int acYearId, int typeI
 
     // 7. Calculate remaining ranges by subtracting given away from received
     if (received.isEmpty()) {
-        System.out.println("WARNING DGM: No received distributions found for Employee " + empId + " with amount " + amount + ". Balance will be 0.");
+        System.out.println("WARNING DGM: No received distributions found for Employee " + empId + " with amount " + amount + ". Creating balance row with is_active = 0.");
+        // Create a balance track row with is_active = 0 to maintain history (do not delete)
+        BalanceTrack nb = createNewBalanceTrack(empId, acYearId, typeId, createdBy);
+        nb.setAmount(amount);
+        nb.setAppFrom(0);
+        nb.setAppTo(0);
+        nb.setAppAvblCnt(0);
+        nb.setIsActive(0); // Set inactive instead of deleting
+        balanceTrackRepository.saveAndFlush(nb);
+        System.out.println("DEBUG DGM: Created inactive balance row for employee " + empId + " with zero count");
     } else {
         for (Distribution receivedDist : received) {
             int receivedStart = (int) receivedDist.getAppStartNo();
@@ -1132,10 +1147,15 @@ private void rebuildBalancesFromDistributions(int empId, int acYearId, int typeI
                 nb.setAppFrom(remainingStart);
                 nb.setAppTo(remainingEnd);
                 nb.setAppAvblCnt(remainingCount);
+                // If available count is 0, set is_active = 0 (do not delete)
+                if (remainingCount <= 0) {
+                    nb.setIsActive(0);
+                }
                 
                 BalanceTrack saved = balanceTrackRepository.saveAndFlush(nb);
                 System.out.println("DEBUG DGM: Created balance row - AppFrom: " + saved.getAppFrom() + 
-                        ", AppTo: " + saved.getAppTo() + ", Count: " + saved.getAppAvblCnt());
+                        ", AppTo: " + saved.getAppTo() + ", Count: " + saved.getAppAvblCnt() +
+                        ", IsActive: " + saved.getIsActive());
             }
         }
     }
