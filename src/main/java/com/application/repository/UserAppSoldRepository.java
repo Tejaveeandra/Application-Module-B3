@@ -322,6 +322,31 @@ public interface UserAppSoldRepository extends JpaRepository<UserAppSold, Long> 
         """)
     List<Object[]> getYearWiseIssuedAndSoldByAmount(@Param("amount") Float amount);
    
+    // NEW METHOD: Get year-wise data by matching series from Distribution to UserAppSold
+    // For cards graph: Find distributions by created_by, is_active=1, amount
+    // Match series (appStartNo-appEndNo) with UserAppSold (rangeStartNo-rangeEndNo)
+    // Sum totalAppCount from UserAppSold for matching series
+    @Query("""
+            SELECT
+                u.acdcYearId,
+                COALESCE(SUM(u.totalAppCount), 0),
+                COALESCE(SUM(CASE WHEN u.entityId = 4 THEN u.sold ELSE 0 END), 0)
+            FROM UserAppSold u
+            INNER JOIN Distribution d ON (
+                d.created_by = :employeeId
+                AND d.isActive = 1
+                AND d.amount = :amount
+                AND u.rangeStartNo = d.appStartNo
+                AND u.rangeEndNo = d.appEndNo
+                AND u.acdcYearId = d.academicYear.acdcYearId
+            )
+            WHERE u.isActive = 1
+              AND u.entityId IN (2, 3, 4)
+            GROUP BY u.acdcYearId
+            ORDER BY u.acdcYearId
+        """)
+    List<Object[]> getYearWiseIssuedAndSoldByAmountAndEmployeeSeries(@Param("amount") Float amount, @Param("employeeId") Integer employeeId);
+   
     @Query("""
             SELECT
                 u.acdcYearId,

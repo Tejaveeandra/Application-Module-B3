@@ -1093,7 +1093,7 @@ MetricsAggregateDTO totalMetrics = curr; // instead of summing every year
      * @param amount Optional amount filter
      * @return List of GraphBarDTO containing year-wise issued and sold data for past 4 years
      */
-    public List<GraphBarDTO> getFlexibleGraphData(Integer zoneId, List<Integer> campusIds, Integer campusId, Float amount) {
+    public List<GraphBarDTO> getFlexibleGraphData(Integer zoneId, List<Integer> campusIds, Integer campusId, Float amount, Integer employeeId) {
         // Get current year (latest year) from AppStatusTrackRepository
         Integer currentYearId = appStatusTrackRepository.findLatestYearId();
         if (currentYearId == null) {
@@ -1201,6 +1201,14 @@ MetricsAggregateDTO totalMetrics = curr; // instead of summing every year
             // Use UserAppSold for zone, but fix the query to match zone analytics
             // Zone analytics uses: entity_id = 2 (Zone) + Admin→DGM + Admin→Campus distributions
             rows = userAppSoldRepository.getYearWiseIssuedAndSoldByZone(zoneId);
+        } else if (amount != null && employeeId != null) {
+            // NEW LOGIC: Cards graph - Match series from Distribution to UserAppSold
+            // Find distributions by created_by, is_active=1, amount
+            // Match series (appStartNo-appEndNo) with UserAppSold (rangeStartNo-rangeEndNo)
+            // Sum totalAppCount from UserAppSold for matching series
+            System.out.println("Filter: Amount + Employee Series Match (amt=" + amount + ", empId=" + employeeId + ")");
+            System.out.println("Using series-based matching: Distribution series -> UserAppSold totalAppCount");
+            rows = userAppSoldRepository.getYearWiseIssuedAndSoldByAmountAndEmployeeSeries(amount, employeeId);
         } else if (amount != null) {
             System.out.println("Filter: Amount (amt=" + amount + ")");
             rows = userAppSoldRepository.getYearWiseIssuedAndSoldByAmount(amount);
