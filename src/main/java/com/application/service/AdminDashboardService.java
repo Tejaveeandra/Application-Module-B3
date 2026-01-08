@@ -91,11 +91,12 @@ public class AdminDashboardService {
         long prevUnavailable = countApplicationsByStatus(employeeId, previousYearId, "unavailable");
         long prevWithPro = countApplicationsByStatus(employeeId, previousYearId, "with pro");
        
-        // Get available data using new logic: Check AdminApp amounts first, then BalanceTrack
+        // Get available data using new logic: AdminApp.total_app - Distribution.total_app_count
         int currAvailable = calculateAvailableByAmount(employeeId, currentYearId);
         int prevAvailable = calculateAvailableByAmount(employeeId, previousYearId);
        
-        // Calculate Issued = Total App (AdminApp) - Available (BalanceTrack)
+        // Calculate Issued = Total App (AdminApp) - Available (AdminApp - Distribution)
+        // This equals: Total App - (Total App - Distributed) = Distributed
         int currIssued = currTotalApplications - currAvailable;
         int prevIssued = prevTotalApplications - prevAvailable;
        
@@ -183,39 +184,19 @@ public class AdminDashboardService {
     }
  
     private int calculateAvailableByAmount(Integer employeeId, Integer yearId) {
-        // Get all distinct amounts from AdminApp for this employee and year (is_active = 1)
-        List<Double> amounts = adminAppRepository.findAmountsByEmpIdAndAcademicYear(employeeId, yearId);
+        // Get total_app from AdminApp table for this employee and year
+        Long adminAppTotal = adminAppRepository.sumTotalAppByEmployeeAndAcademicYear(employeeId, yearId);
+        int totalApp = (adminAppTotal != null) ? adminAppTotal.intValue() : 0;
        
-        if (amounts == null || amounts.isEmpty()) {
-            return 0;
-        }
+        // Get sum of total_app_count from Distribution table (all distributions created by this admin)
+        Integer distributedCount = distributionRepository.sumTotalAppCountByCreatedByAndYear(employeeId, yearId);
+        int totalDistributed = (distributedCount != null) ? distributedCount : 0;
        
-        int totalAvailable = 0;
+        // Available = AdminApp.total_app - Distribution.total_app_count
+        int available = totalApp - totalDistributed;
        
-        // For each amount, check if it's distributed in BalanceTrack
-        for (Double amount : amounts) {
-            if (amount == null) {
-                continue;
-            }
-           
-            // Check if this amount exists in BalanceTrack (distributed)
-            Long balanceTrackAvailable = balanceTrackRepository.sumAppAvblCntByEmployeeAndAcademicYearAndAmount(
-                employeeId, yearId, amount);
-           
-            if (balanceTrackAvailable != null && balanceTrackAvailable > 0) {
-                // Amount is distributed - use BalanceTrack available count
-                totalAvailable += balanceTrackAvailable.intValue();
-            } else {
-                // Amount is NOT distributed (0 or doesn't exist) - use AdminApp totalApp
-                Long adminAppTotal = adminAppRepository.sumTotalAppByEmployeeAndAcademicYearAndAmount(
-                    employeeId, yearId, amount);
-                if (adminAppTotal != null) {
-                    totalAvailable += adminAppTotal.intValue();
-                }
-            }
-        }
-       
-        return totalAvailable;
+        // Ensure available is not negative
+        return Math.max(0, available);
     }
    
     private long countApplicationsByStatus(Integer employeeId, Integer yearId, String statusType) {

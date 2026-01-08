@@ -15,9 +15,9 @@ import org.springframework.stereotype.Repository;
 import com.application.dto.AppStatusTrackDTO;
 
 import com.application.dto.GraphSoldSummaryDTO;
-
+ 
 import com.application.dto.MetricsAggregateDTO;
-
+ 
 import com.application.entity.AppStatusTrack;
  
 @Repository
@@ -132,9 +132,9 @@ public interface AppStatusTrackRepository extends JpaRepository<AppStatusTrack, 
  
     /**
  
-      * Aggregates all metric counts for a specific Zone and Academic Year.
+     * Aggregates all metric counts for a specific Zone and Academic Year.
  
-      */
+     */
  
     @Query("SELECT NEW com.application.dto.MetricsAggregateDTO(" +
             "COALESCE(SUM(ast.totalApp), 0), " +
@@ -151,7 +151,7 @@ public interface AppStatusTrackRepository extends JpaRepository<AppStatusTrack, 
     Optional<MetricsAggregateDTO> getMetricsByZoneAndYear( // <-- Use new DTO
  
             @Param("zoneId") Long zoneId, @Param("acdcYearId") Integer acdcYearId);
-    
+   
     @Query("""
             SELECT COALESCE(SUM(ast.appIssued), 0)
             FROM AppStatusTrack ast
@@ -167,9 +167,9 @@ public interface AppStatusTrackRepository extends JpaRepository<AppStatusTrack, 
  
     /**
  
-      * Aggregates all metric counts for a specific DGM (Employee) and Academic Year.
+     * Aggregates all metric counts for a specific DGM (Employee) and Academic Year.
  
-      */
+     */
  
     @Query("SELECT NEW com.application.dto.MetricsAggregateDTO("
             + "COALESCE(SUM(ast.totalApp), 0), "
@@ -185,7 +185,7 @@ public interface AppStatusTrackRepository extends JpaRepository<AppStatusTrack, 
     Optional<MetricsAggregateDTO> getMetricsByEmployeeAndYear(@Param("empId") Integer empId,
  
             @Param("acdcYearId") Integer acdcYearId);
-    
+   
     @Query("SELECT NEW com.application.dto.MetricsAggregateDTO("
  
             + "COALESCE(SUM(ast.totalApp), 0), COALESCE(SUM(ast.appSold), 0), COALESCE(SUM(ast.appConfirmed), 0), "
@@ -202,9 +202,9 @@ public interface AppStatusTrackRepository extends JpaRepository<AppStatusTrack, 
  
     /**
  
-      * Aggregates all metric counts for a specific Campus and Academic Year.
+     * Aggregates all metric counts for a specific Campus and Academic Year.
  
-      */
+     */
  
     @Query("SELECT NEW com.application.dto.MetricsAggregateDTO(" + // <-- Use new DTO
             "COALESCE(SUM(ast.totalApp), 0), " +
@@ -230,7 +230,7 @@ public interface AppStatusTrackRepository extends JpaRepository<AppStatusTrack, 
     List<Integer> findDistinctYearIdsByEmployee(@Param("empId") Integer empId);
  
     @Query("SELECT DISTINCT ast.academicYear.acdcYearId FROM AppStatusTrack ast WHERE ast.campus.id = :campusId")
-
+ 
     List<Integer> findDistinctYearIdsByCampus(@Param("campusId") Long campusId);
     
     // Method for campus analytics - returns all metrics with app_issued_type_id = 4
@@ -348,7 +348,7 @@ public interface AppStatusTrackRepository extends JpaRepository<AppStatusTrack, 
             @Param("academicYearId") Integer academicYearId
  
         );
-    
+   
     @Query("""
  
             SELECT COALESCE(SUM(a.appAvailable), 0)
@@ -368,7 +368,7 @@ public interface AppStatusTrackRepository extends JpaRepository<AppStatusTrack, 
             @Param("academicYearId") Integer academicYearId
  
         );
-    
+   
     // New Method in AppStatusTrackRepository
     @Query("SELECT NEW com.application.dto.MetricsAggregateDTO("
         + "COALESCE(SUM(ast.totalApp), 0), "
@@ -381,13 +381,13 @@ public interface AppStatusTrackRepository extends JpaRepository<AppStatusTrack, 
         + "FROM AppStatusTrack ast "
         + "LEFT JOIN ast.issuedByType ibt") // <--- No WHERE clause
     Optional<MetricsAggregateDTO> getAdminMetricsAllTime();
-    
+   
     // New Method in AppStatusTrackRepository
     @Query("SELECT COALESCE(SUM(ast.appAvailable), 0) "
         + "FROM AppStatusTrack ast "
         + "WHERE ast.issuedByType.appIssuedId = 4") // <--- Filtering by PRO Issued Type only
     Long getWithProAvailableAllTime();      
-        
+       
         @Query("SELECT NEW com.application.dto.MetricsAggregateDTO(" +
                  "COALESCE(SUM(a.totalApp), 0), " +
                  "COALESCE(SUM(a.appSold), 0), " +
@@ -399,19 +399,19 @@ public interface AppStatusTrackRepository extends JpaRepository<AppStatusTrack, 
                  "FROM AppStatusTrack a " +
                  "LEFT JOIN a.issuedByType ibt " +
                  "WHERE a.campus.id = :campusId AND a.academicYear.acdcYearId = :yearId")
-          Optional<MetricsAggregateDTO> getMetricsByCampusIdAndYear(
-                  @Param("campusId") Integer campusId,
-                  @Param("yearId") Integer yearId
-          );
-  
+         Optional<MetricsAggregateDTO> getMetricsByCampusIdAndYear(
+                 @Param("campusId") Integer campusId,
+                 @Param("yearId") Integer yearId
+         );
+ 
           @Query("SELECT DISTINCT a.academicYear.acdcYearId FROM AppStatusTrack a WHERE a.campus.id = :campusId")
-          List<Integer> findDistinctYearIdsByCampusId(@Param("campusId") Integer campusId);
-  
-  
-          // -------------------------------------------------------------------------
-          //  FIXED: ZONE DIRECT (Returns MetricsAggregateDTO)
-          // -------------------------------------------------------------------------
-          @Query("SELECT NEW com.application.dto.MetricsAggregateDTO(" +
+         List<Integer> findDistinctYearIdsByCampusId(@Param("campusId") Integer campusId);
+ 
+ 
+         // -------------------------------------------------------------------------
+         //  FIXED: ZONE DIRECT (Returns MetricsAggregateDTO)
+         // -------------------------------------------------------------------------
+         @Query("SELECT NEW com.application.dto.MetricsAggregateDTO(" +
                   "COALESCE(SUM(CASE WHEN ibt.appIssuedId = 2 THEN a.totalApp ELSE 0 END), 0), " + // totalApp from Type 2 (Zone) only
                   "COALESCE(SUM(CASE WHEN ibt.appIssuedId = 4 THEN a.appSold ELSE 0 END), 0), " +
                   "COALESCE(SUM(CASE WHEN ibt.appIssuedId = 4 THEN a.appConfirmed ELSE 0 END), 0), " +
@@ -419,17 +419,17 @@ public interface AppStatusTrackRepository extends JpaRepository<AppStatusTrack, 
                   "COALESCE(SUM(CASE WHEN ibt.appIssuedId = 4 THEN a.appUnavailable ELSE 0 END), 0), " +
                   "COALESCE(SUM(CASE WHEN ibt.appIssuedId = 4 THEN a.appDamaged ELSE 0 END), 0), " +
                   "COALESCE(SUM(CASE WHEN ibt.appIssuedId = 2 THEN a.appIssued ELSE 0 END), 0)) " + // Only type 2 (Zone) for issued
-                  "FROM AppStatusTrack a " +
+                 "FROM AppStatusTrack a " +
                   "INNER JOIN a.issuedByType ibt " +
                   "WHERE a.zone.id = :zoneId AND a.academicYear.acdcYearId = :yearId AND a.isActive = 1 AND ibt.appIssuedId IN (2, 4)")
-          Optional<MetricsAggregateDTO> getMetricsByZoneIdAndYear(
-                  @Param("zoneId") Integer zoneId,
-                  @Param("yearId") Integer yearId
-          );
-  
+         Optional<MetricsAggregateDTO> getMetricsByZoneIdAndYear(
+                 @Param("zoneId") Integer zoneId,
+                 @Param("yearId") Integer yearId
+         );
+ 
           @Query(value = "SELECT DISTINCT a.acdc_year_id FROM sce_application.sce_app_stats_trk a WHERE a.zone_id = :zoneId AND a.is_active = 1 AND a.app_issued_type_id IN (2, 4)", nativeQuery = true)
-          List<Integer> findDistinctYearIdsByZoneId(@Param("zoneId") Integer zoneId);
-          
+         List<Integer> findDistinctYearIdsByZoneId(@Param("zoneId") Integer zoneId);
+         
           // Get issued count breakdown by app_issued_type_id for zone (only type 2 - Zone)
           @Query(value = "SELECT a.app_issued_type_id, COALESCE(SUM(a.app_issued), 0) " +
                          "FROM sce_application.sce_app_stats_trk a " +
@@ -523,77 +523,77 @@ public interface AppStatusTrackRepository extends JpaRepository<AppStatusTrack, 
                    "AND a.app_issued_type_id = 4 " +
                    "GROUP BY a.acdc_year_id ORDER BY a.acdc_year_id", nativeQuery = true)
     List<Object[]> getYearWiseMetricsAllTime();
-          @Query(value = "SELECT COALESCE(SUM(a.app_available), 0) " +
-                 "FROM sce_application.sce_app_stats_trk a " +
-                 "WHERE a.zone_id = :zoneId " +
-                 "AND a.acdc_year_id = :yearId " +
-                 "AND a.is_active = 1 " +
-                 "AND a.app_issued_type_id = 4", nativeQuery = true)
-          Optional<Long> getProMetricByZoneId_FromStatus(
-                  @Param("zoneId") Integer zoneId,
-                  @Param("yearId") Integer yearId
-          );
-  
-          // For CAMPUS
-          @Query("SELECT COALESCE(SUM(a.appAvailable), 0) " +
-                 "FROM AppStatusTrack a " +
-                 "WHERE a.campus.id = :campusId " +
+         @Query(value = "SELECT COALESCE(SUM(a.app_available), 0) " +
+                "FROM sce_application.sce_app_stats_trk a " +
+                "WHERE a.zone_id = :zoneId " +
+                "AND a.acdc_year_id = :yearId " +
+                "AND a.is_active = 1 " +
+                "AND a.app_issued_type_id = 4", nativeQuery = true)
+         Optional<Long> getProMetricByZoneId_FromStatus(
+                 @Param("zoneId") Integer zoneId,
+                 @Param("yearId") Integer yearId
+         );
+ 
+         // For CAMPUS
+         @Query("SELECT COALESCE(SUM(a.appAvailable), 0) " +
+                "FROM AppStatusTrack a " +
+                "WHERE a.campus.id = :campusId " +
                  "AND a.academicYear.acdcYearId = :yearId " +
-                 "AND a.issuedByType.appIssuedId = 4")
-          Optional<Long> getProMetricByCampusId_FromStatus(
-                  @Param("campusId") Integer campusId,
-                  @Param("yearId") Integer yearId
-          );
-          
-       // In AppStatusTrackRepository.java
-  
-          @Query("SELECT NEW com.application.dto.MetricsAggregateDTO("
-              + "COALESCE(SUM(ast.totalApp), 0), "
-              + "COALESCE(SUM(ast.appSold), 0), "
-              + "COALESCE(SUM(ast.appConfirmed), 0), "
+                "AND a.issuedByType.appIssuedId = 4")
+         Optional<Long> getProMetricByCampusId_FromStatus(
+                 @Param("campusId") Integer campusId,
+                 @Param("yearId") Integer yearId
+         );
+         
+      // In AppStatusTrackRepository.java
+ 
+         @Query("SELECT NEW com.application.dto.MetricsAggregateDTO("
+             + "COALESCE(SUM(ast.totalApp), 0), "
+             + "COALESCE(SUM(ast.appSold), 0), "
+             + "COALESCE(SUM(ast.appConfirmed), 0), "
               + "COALESCE(SUM(ast.appAvailable), 0), " // Reverting back to simple available since DGM is excluded from this card logic anyway
-              + "COALESCE(SUM(ast.appUnavailable), 0), "
-              + "COALESCE(SUM(ast.appDamaged), 0), "
+             + "COALESCE(SUM(ast.appUnavailable), 0), "
+             + "COALESCE(SUM(ast.appDamaged), 0), "
               + "COALESCE(SUM(ast.appIssued), 0)) "
-              + "FROM AppStatusTrack ast "
-              + "LEFT JOIN ast.issuedByType ibt "
-              + "WHERE ast.employee.id = :empId "
-              + "AND ast.academicYear.acdcYearId = :acdcYearId") // Check: This was the fix from the last error
-          Optional<MetricsAggregateDTO> getMetricsByEmployeeAndYear(
-              @Param("empId") Long empId,
-              @Param("acdcYearId") Integer acdcYearId);
-          
-       @Query("SELECT COALESCE(SUM(a.appAvailable), 0) " +
-              "FROM AppStatusTrack a " +
-              "WHERE a.employee.id = :empId " + // <--- CHANGED FROM .empId to .id
-              "AND a.academicYear.acdcYearId = :yearId " +
-              "AND a.issuedByType.appIssuedId = 4")
-       Optional<Long> getProMetricByEmployeeId_FromStatus(
-           @Param("empId") Integer empId,
-           @Param("yearId") Integer yearId
-       );
-          
-       // In AppStatusTrackRepository.java
-  
-          @Query("SELECT DISTINCT ast.academicYear.acdcYearId FROM AppStatusTrack ast WHERE ast.employee.id = :empId")
-          List<Integer> findDistinctYearIdsByEmployee(@Param("empId") Long empId); // Note: Use Long if employee.empId is Long
-  
+             + "FROM AppStatusTrack ast "
+             + "LEFT JOIN ast.issuedByType ibt "
+             + "WHERE ast.employee.id = :empId "
+             + "AND ast.academicYear.acdcYearId = :acdcYearId") // Check: This was the fix from the last error
+         Optional<MetricsAggregateDTO> getMetricsByEmployeeAndYear(
+             @Param("empId") Long empId,
+             @Param("acdcYearId") Integer acdcYearId);
+         
+      @Query("SELECT COALESCE(SUM(a.appAvailable), 0) " +
+             "FROM AppStatusTrack a " +
+             "WHERE a.employee.id = :empId " + // <--- CHANGED FROM .empId to .id
+             "AND a.academicYear.acdcYearId = :yearId " +
+             "AND a.issuedByType.appIssuedId = 4")
+      Optional<Long> getProMetricByEmployeeId_FromStatus(
+          @Param("empId") Integer empId,
+          @Param("yearId") Integer yearId
+      );
+         
+      // In AppStatusTrackRepository.java
+ 
+         @Query("SELECT DISTINCT ast.academicYear.acdcYearId FROM AppStatusTrack ast WHERE ast.employee.id = :empId")
+         List<Integer> findDistinctYearIdsByEmployee(@Param("empId") Long empId); // Note: Use Long if employee.empId is Long
+ 
           // Original method for general campus list queries (without zone/app_issued_type_id filters)
-          @Query("SELECT NEW com.application.dto.MetricsAggregateDTO(" +
-                     "COALESCE(SUM(a.totalApp), 0), " +
-                     "COALESCE(SUM(a.appSold), 0), " +
-                     "COALESCE(SUM(a.appConfirmed), 0), " +
-                     "COALESCE(SUM(CASE WHEN (ibt.appIssuedId IS NULL OR ibt.appIssuedId != 4) THEN a.appAvailable ELSE 0 END), 0), " +
-                     "COALESCE(SUM(a.appUnavailable), 0), " +
-                     "COALESCE(SUM(a.appDamaged), 0), " +
-                     "COALESCE(SUM(CASE WHEN ibt.appIssuedId = 4 THEN a.totalApp ELSE 0 END), 0)) " +
-                     "FROM AppStatusTrack a " +
-                     "LEFT JOIN a.issuedByType ibt " +
+         @Query("SELECT NEW com.application.dto.MetricsAggregateDTO(" +
+                    "COALESCE(SUM(a.totalApp), 0), " +
+                    "COALESCE(SUM(a.appSold), 0), " +
+                    "COALESCE(SUM(a.appConfirmed), 0), " +
+                    "COALESCE(SUM(CASE WHEN (ibt.appIssuedId IS NULL OR ibt.appIssuedId != 4) THEN a.appAvailable ELSE 0 END), 0), " +
+                    "COALESCE(SUM(a.appUnavailable), 0), " +
+                    "COALESCE(SUM(a.appDamaged), 0), " +
+                    "COALESCE(SUM(CASE WHEN ibt.appIssuedId = 4 THEN a.totalApp ELSE 0 END), 0)) " +
+                    "FROM AppStatusTrack a " +
+                    "LEFT JOIN a.issuedByType ibt " +
                      "WHERE a.campus.id IN :campusIds AND a.academicYear.acdcYearId = :yearId AND a.isActive = 1")
-             Optional<MetricsAggregateDTO> getMetricsByCampusIdsAndYear(
-                     @Param("campusIds") List<Integer> campusIds,
-                     @Param("yearId") Integer yearId
-             );
+            Optional<MetricsAggregateDTO> getMetricsByCampusIdsAndYear(
+                    @Param("campusIds") List<Integer> campusIds,
+                    @Param("yearId") Integer yearId
+            );
              
           // Method specifically for DGM employee analytics with filters: app_issued_type_id = 3, zone_id, is_active = 1
           @Query("SELECT NEW com.application.dto.MetricsAggregateDTO(" +
@@ -657,20 +657,20 @@ public interface AppStatusTrackRepository extends JpaRepository<AppStatusTrack, 
                      @Param("zoneId") Integer zoneId,
                      @Param("yearId") Integer yearId
              );
-  
-             @Query("SELECT COALESCE(SUM(a.appAvailable), 0) " +
-                    "FROM AppStatusTrack a " +
-                    "WHERE a.campus.id IN :campusIds " +
+ 
+            @Query("SELECT COALESCE(SUM(a.appAvailable), 0) " +
+                   "FROM AppStatusTrack a " +
+                   "WHERE a.campus.id IN :campusIds " +
                     "AND a.academicYear.acdcYearId = :yearId " +
-                    "AND a.issuedByType.appIssuedId = 4")
-             Optional<Long> getProMetricByCampusIds_FromStatus(
-                     @Param("campusIds") List<Integer> campusIds,
-                     @Param("yearId") Integer yearId
-             );
-  
+                   "AND a.issuedByType.appIssuedId = 4")
+            Optional<Long> getProMetricByCampusIds_FromStatus(
+                    @Param("campusIds") List<Integer> campusIds,
+                    @Param("yearId") Integer yearId
+            );
+ 
              // Original method for general campus list queries (without zone/app_issued_type_id filters)
              @Query("SELECT DISTINCT a.academicYear.acdcYearId FROM AppStatusTrack a WHERE a.campus.id IN :campusIds")
-             List<Integer> findDistinctYearIdsByCampusIds(@Param("campusIds") List<Integer> campusIds);
+            List<Integer> findDistinctYearIdsByCampusIds(@Param("campusIds") List<Integer> campusIds);
              
              // Method specifically for DGM employee analytics with filters: app_issued_type_id = 3, zone_id, is_active = 1
              @Query("SELECT DISTINCT a.academicYear.acdcYearId " +

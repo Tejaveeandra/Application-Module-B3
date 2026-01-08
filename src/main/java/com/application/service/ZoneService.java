@@ -637,15 +637,19 @@ public class ZoneService {
             }
  
             // Update Logic
-            balance.setAppFrom(calculatedAppFrom); // Use calculated start (next available or master start)
-            balance.setAppTo(master.getAppToNo());
-            balance.setAppAvblCnt(master.getTotalApp() - totalDistributed);
-            // If available count is 0, set is_active = 0 (do not delete)
-            if (balance.getAppAvblCnt() <= 0) {
-                balance.setIsActive(0);
+            int availableCount = master.getTotalApp() - totalDistributed;
+            balance.setAppAvblCnt(availableCount);
+            
+            // If available count is 0, set app_from = 0, app_to = 0, and is_active = 1
+            if (availableCount <= 0) {
+                balance.setAppFrom(0);
+                balance.setAppTo(0);
             } else {
-                balance.setIsActive(1);
+                balance.setAppFrom(calculatedAppFrom); // Use calculated start (next available or master start)
+                balance.setAppTo(master.getAppToNo());
             }
+            // Keep is_active = 1 even when available count is 0 (show as available 0)
+            balance.setIsActive(1);
 
             // CRITICAL: Save and flush to ensure the balance update is persisted
             balanceTrackRepository.saveAndFlush(balance);
@@ -744,13 +748,18 @@ public class ZoneService {
                    
                     BalanceTrack nb = createNewBalanceTrack(empId, acYearId, typeId, createdBy);
                     nb.setAmount(amount);
-                    nb.setAppFrom(remainingStart);
-                    nb.setAppTo(remainingEnd);
                     nb.setAppAvblCnt(remainingCount);
-                    // If available count is 0, set is_active = 0 (do not delete)
+                    
+                    // If available count is 0, set app_from = 0, app_to = 0, and is_active = 1
                     if (remainingCount <= 0) {
-                        nb.setIsActive(0);
+                        nb.setAppFrom(0);
+                        nb.setAppTo(0);
+                    } else {
+                        nb.setAppFrom(remainingStart);
+                        nb.setAppTo(remainingEnd);
                     }
+                    // Keep is_active = 1 even when available count is 0 (show as available 0)
+                    nb.setIsActive(1);
                    
                     BalanceTrack saved = balanceTrackRepository.saveAndFlush(nb);
                     System.out.println("DEBUG: Created balance row - AppFrom: " + saved.getAppFrom() +

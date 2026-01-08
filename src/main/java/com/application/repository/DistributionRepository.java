@@ -31,6 +31,9 @@ public interface DistributionRepository extends JpaRepository<Distribution, Inte
 	@Query("SELECT SUM(d.totalAppCount) FROM Distribution d WHERE d.created_by = :empId AND d.academicYear.acdcYearId = :yearId AND d.amount = :amount AND d.isActive = 1")
 	Optional<Integer> sumTotalAppCountByCreatedByAndAmount(@Param("empId") int empId, @Param("yearId") int yearId, @Param("amount") Float amount);
 	
+	@Query("SELECT COALESCE(SUM(d.totalAppCount), 0) FROM Distribution d WHERE d.created_by = :empId AND d.academicYear.acdcYearId = :yearId AND d.isActive = 1")
+	Integer sumTotalAppCountByCreatedByAndYear(@Param("empId") int empId, @Param("yearId") int yearId);
+	
 	// Find minimum app start number distributed by Admin/CO
 	@Query("SELECT MIN(d.appStartNo) FROM Distribution d WHERE d.created_by = :empId AND d.academicYear.acdcYearId = :yearId AND d.amount = :amount AND d.isActive = 1")
 	Optional<Integer> findMinAppStartNoByCreatedByAndAmount(@Param("empId") int empId, @Param("yearId") int yearId, @Param("amount") Float amount);

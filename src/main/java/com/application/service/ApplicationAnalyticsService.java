@@ -47,8 +47,8 @@ public class ApplicationAnalyticsService {
     private ZonalAccountantRepository zonalAccountantRepository;
     @Autowired
     private DgmRepository dgmRepository;
-    @Autowired
-    private CampusRepository campusRepository;
+@Autowired
+private CampusRepository campusRepository;
     @Autowired
     private DistributionRepository distributionRepository;
 @Autowired
@@ -1212,9 +1212,9 @@ MetricsAggregateDTO totalMetrics = curr; // instead of summing every year
 
         // Apply year filtering
         System.out.println("Raw rows from DB before year filtering: " + rows.size());
-        rows = rows.stream()
-                .filter(row -> yearIds.contains((Integer) row[0]))
-                .collect(java.util.stream.Collectors.toList());
+            rows = rows.stream()
+                    .filter(row -> yearIds.contains((Integer) row[0]))
+                    .collect(java.util.stream.Collectors.toList());
         System.out.println("Rows after year filtering (for years: " + yearIds + "): " + rows.size());
 
         // Get AcademicYear entities for year labels
