@@ -385,7 +385,8 @@ public class ApplicationFastSale {
 	public ApplicationFastDetailsGet getFastSaleDetailsByAdmissionNo(Long studAdmsNo) {
 
 		StudentAcademicDetails student = studentAcademicDetailsRepository.findByStudAdmsNoAndIs_active(studAdmsNo, 1)
-				.orElseThrow(() -> new EntityNotFoundException("Student not found with Admission No: " + studAdmsNo + " or record is not active"));
+				.orElseThrow(() -> new EntityNotFoundException(
+						"Student not found with Admission No: " + studAdmsNo + " or record is not active"));
 
 		Optional<StudentPersonalDetails> personalOpt = personalDetailsRepository.findByStudentAcademicDetails(student);
 		Optional<StudentOrientationDetails> orientationOpt = orientationDetailsRepository
@@ -561,10 +562,10 @@ public class ApplicationFastSale {
 					"A PRO has not been linked to the distribution for Admission Number: " + admissionNumberNumeric);
 		}
 
-		// --- CRITICAL FIX: Fetch existing Academic Details or create a new one
+		// --- CRITICAL FIX: Fetch existing ACTIVE Academic Details or create a new one
 		// (UPSERT) ---
 		StudentAcademicDetails academicDetails = studentAcademicDetailsRepository
-				.findByStudAdmsNo(admissionNumberNumeric).orElseGet(StudentAcademicDetails::new);
+				.findByStudAdmsNoAndIs_active(admissionNumberNumeric, 1).orElseGet(StudentAcademicDetails::new);
 
 		// --- 1. Map/Update Academic Details (Conditional Update) ---
 		academicDetails.setIs_active(1);
@@ -777,59 +778,58 @@ public class ApplicationFastSale {
 		}
 
 		// --- 6. Save/Update Siblings (UPSERT LOGIC) ---
-if (formData.getSiblings() != null && !formData.getSiblings().isEmpty()) {
+		if (formData.getSiblings() != null && !formData.getSiblings().isEmpty()) {
 
-    Map<String, Sibling> existingSiblingsMap = siblingRepository
-            .findByStudentAcademicDetails(savedAcademicDetails).stream()
-            .filter(s -> s.getSibling_name() != null)
-            .collect(Collectors.toMap(Sibling::getSibling_name, Function.identity(), (first, second) -> first));
+			Map<String, Sibling> existingSiblingsMap = siblingRepository
+					.findByStudentAcademicDetails(savedAcademicDetails).stream()
+					.filter(s -> s.getSibling_name() != null)
+					.collect(Collectors.toMap(Sibling::getSibling_name, Function.identity(), (first, second) -> first));
 
-    for (SiblingDTO siblingDto : formData.getSiblings()) {
+			for (SiblingDTO siblingDto : formData.getSiblings()) {
 
-        Sibling sibling = existingSiblingsMap.get(siblingDto.getFullName());
+				Sibling sibling = existingSiblingsMap.get(siblingDto.getFullName());
 
-        if (sibling == null) {
-            sibling = new Sibling();
-            sibling.setStudentAcademicDetails(savedAcademicDetails);
-            sibling.setCreated_by(siblingDto.getCreatedBy());
-            sibling.setSibling_name(siblingDto.getFullName());
-        }
+				if (sibling == null) {
+					sibling = new Sibling();
+					sibling.setStudentAcademicDetails(savedAcademicDetails);
+					sibling.setCreated_by(siblingDto.getCreatedBy());
+					sibling.setSibling_name(siblingDto.getFullName());
+				}
 
-        sibling.setSibling_school(siblingDto.getSchoolName());
+				sibling.setSibling_school(siblingDto.getSchoolName());
 
-        // Set relation
-        if (siblingDto.getRelationTypeId() != null) {
-            relationRepository.findById(siblingDto.getRelationTypeId())
-                    .ifPresent(sibling::setStudentRelation);
-        }
+				// Set relation
+				if (siblingDto.getRelationTypeId() != null) {
+					relationRepository.findById(siblingDto.getRelationTypeId())
+							.ifPresent(sibling::setStudentRelation);
+				}
 
-        // 🌟 AUTO-ASSIGN GENDER BASED ON RELATION
-        Integer genderId = null;
+				// 🌟 AUTO-ASSIGN GENDER BASED ON RELATION
+				Integer genderId = null;
 
-        if (siblingDto.getRelationTypeId() != null) {
+				if (siblingDto.getRelationTypeId() != null) {
 
-            if (siblingDto.getRelationTypeId() == 3) {        // Brother
-                genderId = 1;  // Male
-            } else if (siblingDto.getRelationTypeId() == 4) { // Sister
-                genderId = 2;  // Female
-            }
-        }
+					if (siblingDto.getRelationTypeId() == 3) { // Brother
+						genderId = 1; // Male
+					} else if (siblingDto.getRelationTypeId() == 4) { // Sister
+						genderId = 2; // Female
+					}
+				}
 
-        if (genderId != null) {
-            genderRepository.findById(genderId)
-                    .ifPresent(sibling::setGender);
-        } 
+				if (genderId != null) {
+					genderRepository.findById(genderId)
+							.ifPresent(sibling::setGender);
+				}
 
-        // Class
-        if (siblingDto.getClassId() != null) {
-            classRepository.findById(siblingDto.getClassId())
-                    .ifPresent(sibling::setStudentClass);
-        }
+				// Class
+				if (siblingDto.getClassId() != null) {
+					classRepository.findById(siblingDto.getClassId())
+							.ifPresent(sibling::setStudentClass);
+				}
 
-        siblingRepository.save(sibling);
-    }
-}
-
+				siblingRepository.save(sibling);
+			}
+		}
 
 		// --- 7. Save/Update Concession Details (UPSERT LOGIC) ---
 		if (formData.getConcessions() != null && !formData.getConcessions().isEmpty()) {
@@ -951,7 +951,8 @@ if (formData.getSiblings() != null && !formData.getSiblings().isEmpty()) {
 
 		// 1. Fetch Academic Entity (only active records)
 		StudentAcademicDetails academic = studentAcademicDetailsRepository.findByStudAdmsNoAndIs_active(studAdmsNo, 1)
-				.orElseThrow(() -> new EntityNotFoundException("Student not found with Admission No: " + studAdmsNo + " or record is not active"));
+				.orElseThrow(() -> new EntityNotFoundException(
+						"Student not found with Admission No: " + studAdmsNo + " or record is not active"));
 
 		StudentApplicationSingleDTO dto = new StudentApplicationSingleDTO();
 
@@ -1546,68 +1547,66 @@ if (formData.getSiblings() != null && !formData.getSiblings().isEmpty()) {
 		// ==============================================================
 		// 6. UPDATE SIBLINGS
 		// ==============================================================
-if (formData.getSiblings() != null) {
+		if (formData.getSiblings() != null) {
 
-    Map<String, Sibling> existing = siblingRepository
-            .findByStudentAcademicDetails(updatedAcademicDetails)
-            .stream()
-            .filter(s -> s.getSibling_name() != null)
-            .collect(Collectors.toMap(Sibling::getSibling_name, Function.identity(), (a, b) -> a));
+			Map<String, Sibling> existing = siblingRepository
+					.findByStudentAcademicDetails(updatedAcademicDetails)
+					.stream()
+					.filter(s -> s.getSibling_name() != null)
+					.collect(Collectors.toMap(Sibling::getSibling_name, Function.identity(), (a, b) -> a));
 
-    for (SiblingDTO s : formData.getSiblings()) {
+			for (SiblingDTO s : formData.getSiblings()) {
 
-        Sibling sib = existing.getOrDefault(s.getFullName(), new Sibling());
-        sib.setStudentAcademicDetails(updatedAcademicDetails);
+				Sibling sib = existing.getOrDefault(s.getFullName(), new Sibling());
+				sib.setStudentAcademicDetails(updatedAcademicDetails);
 
-        // Full name
-        if (s.getFullName() != null) {
-            sib.setSibling_name(s.getFullName());
-        }
+				// Full name
+				if (s.getFullName() != null) {
+					sib.setSibling_name(s.getFullName());
+				}
 
-        // School name
-        if (s.getSchoolName() != null) {
-            sib.setSibling_school(s.getSchoolName());
-        }
+				// School name
+				if (s.getSchoolName() != null) {
+					sib.setSibling_school(s.getSchoolName());
+				}
 
-        // Relation Type
-        if (s.getRelationTypeId() != null && s.getRelationTypeId() > 0) {
-            relationRepository.findById(s.getRelationTypeId())
-                    .ifPresent(sib::setStudentRelation);
-        }
+				// Relation Type
+				if (s.getRelationTypeId() != null && s.getRelationTypeId() > 0) {
+					relationRepository.findById(s.getRelationTypeId())
+							.ifPresent(sib::setStudentRelation);
+				}
 
-        // Class
-        if (s.getClassId() != null && s.getClassId() > 0) {
-            classRepository.findById(s.getClassId())
-                    .ifPresent(sib::setStudentClass);
-        }
+				// Class
+				if (s.getClassId() != null && s.getClassId() > 0) {
+					classRepository.findById(s.getClassId())
+							.ifPresent(sib::setStudentClass);
+				}
 
-        // 🌟 AUTO GENDER ASSIGNMENT BASED ON RELATION
-        Integer autoGenderId = null;
+				// 🌟 AUTO GENDER ASSIGNMENT BASED ON RELATION
+				Integer autoGenderId = null;
 
-        if (s.getRelationTypeId() != null) {
+				if (s.getRelationTypeId() != null) {
 
-            if (s.getRelationTypeId() == 3) {    // Brother
-                autoGenderId = 1;  // Male
-            } 
-            else if (s.getRelationTypeId() == 4) { // Sister
-                autoGenderId = 2;  // Female
-            }
-        }
+					if (s.getRelationTypeId() == 3) { // Brother
+						autoGenderId = 1; // Male
+					} else if (s.getRelationTypeId() == 4) { // Sister
+						autoGenderId = 2; // Female
+					}
+				}
 
-        if (autoGenderId != null) {
-            genderRepository.findById(autoGenderId)
-                    .ifPresent(sib::setGender);
-        }
+				if (autoGenderId != null) {
+					genderRepository.findById(autoGenderId)
+							.ifPresent(sib::setGender);
+				}
 
-        // CreatedBy (only on new row)
-        if (sib.getCreated_by() == 0 && s.getCreatedBy() != null) {
-            sib.setCreated_by(s.getCreatedBy());
-        }
+				// CreatedBy (only on new row)
+				if (sib.getCreated_by() == 0 && s.getCreatedBy() != null) {
+					sib.setCreated_by(s.getCreatedBy());
+				}
 
-        siblingRepository.save(sib);
-    }
-}
-
+				siblingRepository.save(sib);
+			}
+		}
 
 		// ==============================================================
 		// 7. UPDATE CONCESSIONS
@@ -1732,8 +1731,10 @@ if (formData.getSiblings() != null) {
 
 		// 1. Fetch main Academic Entity
 		StudentAcademicDetails academicDetails = studentAcademicDetailsRepository
-				.findByStudAdmsNo(formData.getStudAdmsNo()).orElseThrow(() -> new EntityNotFoundException(
-						"Student not found with Admission No: " + formData.getStudAdmsNo()));
+				.findByStudAdmsNoAndIs_active(formData.getStudAdmsNo(), 1)
+				.orElseThrow(() -> new EntityNotFoundException(
+						"Student not found with Admission No: " + formData.getStudAdmsNo()
+								+ " or record is not active"));
 
 		// 2. Update/Set Enrollment Details on StudentAcademicDetails
 		// ... (Enrollment update logic remains the same) ...
@@ -1753,8 +1754,6 @@ if (formData.getSiblings() != null) {
 		// Student Type
 		if (formData.getStudentTypeId() != null)
 			studentTypeRepository.findById(formData.getStudentTypeId()).ifPresent(academicDetails::setStudentType);
-		
-		
 
 		// City & Course mapping... (Placeholders)
 
