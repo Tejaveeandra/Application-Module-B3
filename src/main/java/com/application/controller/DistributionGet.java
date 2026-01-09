@@ -325,13 +325,11 @@ public class DistributionGet {
                  @RequestParam(required = true) String cmpsCategory,
                  @RequestParam(required = false, defaultValue = "false") boolean returnMessage) {
              
-             // If returnMessage is true, return a polite message
-             if (returnMessage) {
-                 return ResponseEntity.ok(ApiResponse.success(
-                     "Please select a zone, DGM, or campus to proceed", 
-                     "Please select a zone, DGM, or campus to proceed"
-                 ));
-             }
+            // If returnMessage is true, return an empty object
+            if (returnMessage) {
+                EmployeeLocationDTO emptyLocation = new EmployeeLocationDTO();
+                return ResponseEntity.ok(emptyLocation);
+            }
              
              // If returnMessage is false, return the location data
              EmployeeLocationDTO location = applicationService.getEmployeeLocationByCategory(employeeId, cmpsCategory);
