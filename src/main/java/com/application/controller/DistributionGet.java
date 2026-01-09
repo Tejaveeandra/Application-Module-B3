@@ -15,6 +15,7 @@ import com.application.dto.AppSeriesDTO;
 import com.application.dto.EmployeesDto;
 import com.application.dto.GenericDropdownDTO;
 import com.application.dto.LocationAutoFillDTO;
+import com.application.dto.EmployeeLocationDTO;
 import com.application.entity.AcademicYear;
 import com.application.entity.BalanceTrack;
 import com.application.entity.City;
@@ -317,6 +318,30 @@ public class DistributionGet {
                    campusService.fetchCampusesByCityAndCategory(category, cityId)
                 );
             }
- 
+         
+         @GetMapping("/employee-location/{employeeId}")
+         public ResponseEntity<?> getEmployeeLocation(
+                 @PathVariable int employeeId,
+                 @RequestParam(required = true) String cmpsCategory,
+                 @RequestParam(required = false, defaultValue = "false") boolean returnMessage) {
+             
+             // If returnMessage is true, return a polite message
+             if (returnMessage) {
+                 return ResponseEntity.ok(ApiResponse.success(
+                     "Please select a zone, DGM, or campus to proceed", 
+                     "Please select a zone, DGM, or campus to proceed"
+                 ));
+             }
+             
+             // If returnMessage is false, return the location data
+             EmployeeLocationDTO location = applicationService.getEmployeeLocationByCategory(employeeId, cmpsCategory);
+             
+             if (location == null) {
+                 return ResponseEntity.notFound().build();
+             }
+             
+             return ResponseEntity.ok(location);
+         }
+
        
 }

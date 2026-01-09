@@ -31,8 +31,12 @@ public interface DgmRepository extends JpaRepository<Dgm, Integer> {
 	List<GenericDropdownDTO> findAllDgmEmployees();
 
 	@Query("SELECT DISTINCT new com.application.dto.GenericDropdownDTO(e.emp_id, CONCAT(e.first_name, ' ', e.last_name)) "
-			+ "FROM Dgm d " + "JOIN d.employee e " + "WHERE d.zone.zoneId = :zoneId " + "AND e.isActive = 1")
+			+ "FROM Dgm d " + "JOIN d.employee e " + "WHERE d.zone.zoneId = :zoneId " + "AND e.isActive = 1 " + "AND d.isActive = 1")
 	List<GenericDropdownDTO> findDistinctActiveEmployeesByZoneId(@Param("zoneId") int zoneId);
+	
+	@Query("SELECT DISTINCT new com.application.dto.GenericDropdownDTO(e.emp_id, CONCAT(e.first_name, ' ', e.last_name)) "
+			+ "FROM Dgm d " + "JOIN d.employee e " + "WHERE d.campus.campusId = :campusId " + "AND e.isActive = 1 " + "AND d.isActive = 1")
+	List<GenericDropdownDTO> findDistinctActiveEmployeesByCampusId(@Param("campusId") int campusId);
 
 	@Query("SELECT DISTINCT new com.application.dto.GenericDropdownDTO(c.campusId, c.campusName) " + "FROM Dgm d "
 			+ "JOIN d.campus c " + "WHERE c.isActive = 1")

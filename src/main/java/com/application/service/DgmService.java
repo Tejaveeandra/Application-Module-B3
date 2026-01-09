@@ -32,6 +32,11 @@ import com.application.repository.EmployeeRepository;
 import com.application.repository.UserAdminViewRepository;
 import com.application.repository.ZonalAccountantRepository;
 import com.application.repository.ZoneRepository;
+import com.application.repository.SCEmployeeRepository;
+import com.application.dto.EmployeeLocationDTO;
+import com.application.entity.SCEmployeeEntity;
+import com.application.entity.State;
+import com.application.entity.Zone;
  
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
@@ -52,6 +57,7 @@ public class DgmService {
     private final UserAdminViewRepository userAdminViewRepository;
     private final ZonalAccountantRepository zonalAccountantRepository;
     private final AdminAppRepository adminAppRepository;
+    private final SCEmployeeRepository scEmployeeRepository;
  
     // --- Dropdown and Helper Methods with Caching ---
 //    @Cacheable("academicYears")
@@ -297,20 +303,9 @@ public class DgmService {
  
     @Cacheable(cacheNames = "getDgmforCampus", key = "#campusId")
     public List<GenericDropdownDTO> getDgmEmployeesForCampus(int campusId) {
-        // 1. Find the Campus by ID
-        Optional<Campus> campusOptional = campusRepository.findById(campusId);
- 
-        if (campusOptional.isEmpty()) {
-            return Collections.emptyList();
-        }
- 
-        // 2. Get the Zone ID from the Campus
-        Campus campus = campusOptional.get();
-        int zoneId = campus.getZone().getZoneId();
- 
-        // 3. Find distinct DGM employees for that Zone, checking isActive = 1
-        // Calling the updated repository method:
-        return dgmRepository.findDistinctActiveEmployeesByZoneId(zoneId);
+        // Find distinct DGM employees for that Campus, checking isActive = 1
+        // Filter by campusId directly with d.isActive = 1 and e.isActive = 1
+        return dgmRepository.findDistinctActiveEmployeesByCampusId(campusId);
     }
    
 public List<Double> getApplicationFees(int empId, int academicYearId) { // UPDATED SIGNATURE
@@ -371,6 +366,76 @@ public LocationAutoFillDTO getAutoPopulateData(int empId, String category) {
     // 5️⃣ Return final DTO
     return new LocationAutoFillDTO(cityId, cityName, districtId, districtName);
 }
+
+    /**
+     * Get employee location details based on employee ID and campus category
+     * Checks if employee's cmps_category matches the provided category
+     * If match, returns campus, city, state, zone, and district information
+     */
+    public EmployeeLocationDTO getEmployeeLocationByCategory(int employeeId, String cmpsCategory) {
+        // 1. Get employee from view
+        List<SCEmployeeEntity> employees = scEmployeeRepository.findByEmpId(employeeId);
+        if (employees == null || employees.isEmpty()) {
+            return null;
+        }
+        
+        SCEmployeeEntity employee = employees.get(0);
+        
+        // 2. Check if cmps_category matches (case-insensitive)
+        String employeeCategory = employee.getCmpsCategory();
+        if (employeeCategory == null || !employeeCategory.equalsIgnoreCase(cmpsCategory)) {
+            return null; // Category doesn't match
+        }
+        
+        // 3. Get campus ID and name from employee view
+        int campusId = employee.getEmpCampusId();
+        String campusName = employee.getCampusName();
+        
+        if (campusId <= 0) {
+            return null; // Invalid campus ID
+        }
+        
+        // 4. Get campus from database
+        Optional<Campus> campusOptional = campusRepository.findById(campusId);
+        if (campusOptional.isEmpty()) {
+            return null;
+        }
+        
+        Campus campus = campusOptional.get();
+        
+        // 5. Get city, state, zone from campus
+        City city = campus.getCity();
+        State state = campus.getState();
+        Zone zone = campus.getZone();
+        
+        Integer cityId = city != null ? city.getCityId() : null;
+        String cityName = city != null ? city.getCityName() : null;
+        
+        Integer stateId = state != null ? state.getStateId() : null;
+        String stateName = state != null ? state.getStateName() : null;
+        
+        Integer zoneId = zone != null ? zone.getZoneId() : null;
+        String zoneName = zone != null ? zone.getZoneName() : null;
+        
+        // 6. Get district from city
+        District district = city != null ? city.getDistrict() : null;
+        Integer districtId = district != null ? district.getDistrictId() : null;
+        String districtName = district != null ? district.getDistrictName() : null;
+        
+        // 7. Return DTO with all information
+        return new EmployeeLocationDTO(
+            campusId,
+            campusName,
+            cityId,
+            cityName,
+            stateId,
+            stateName,
+            zoneId,
+            zoneName,
+            districtId,
+            districtName
+        );
+    }
    
  
  
