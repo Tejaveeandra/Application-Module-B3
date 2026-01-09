@@ -347,6 +347,79 @@ public interface UserAppSoldRepository extends JpaRepository<UserAppSold, Long> 
         """)
     List<Object[]> getYearWiseIssuedAndSoldByAmountAndEmployeeSeries(@Param("amount") Float amount, @Param("employeeId") Integer employeeId);
    
+    // ZONAL ACCOUNTANT: Get year-wise data for distributions where Admin gave to DGM or Campus in that zone
+    // Match series from Distribution to UserAppSold
+    @Query("""
+            SELECT
+                u.acdcYearId,
+                COALESCE(SUM(u.totalAppCount), 0),
+                COALESCE(SUM(CASE WHEN u.entityId = 4 THEN u.sold ELSE 0 END), 0)
+            FROM UserAppSold u
+            INNER JOIN Distribution d ON (
+                d.issuedByType.appIssuedId = 1
+                AND d.issuedToType.appIssuedId IN (3, 4)
+                AND d.isActive = 1
+                AND d.amount = :amount
+                AND d.zone.zoneId = :zoneId
+                AND u.rangeStartNo = d.appStartNo
+                AND u.rangeEndNo = d.appEndNo
+                AND u.acdcYearId = d.academicYear.acdcYearId
+            )
+            WHERE u.isActive = 1
+              AND u.entityId IN (2, 3, 4)
+            GROUP BY u.acdcYearId
+            ORDER BY u.acdcYearId
+        """)
+    List<Object[]> getYearWiseIssuedAndSoldByAmountAndZoneSeries(@Param("amount") Float amount, @Param("zoneId") Integer zoneId);
+   
+    // DGM: Get year-wise data for distributions where Admin gave to Campus under that DGM
+    // Match series from Distribution to UserAppSold
+    @Query("""
+            SELECT
+                u.acdcYearId,
+                COALESCE(SUM(u.totalAppCount), 0),
+                COALESCE(SUM(CASE WHEN u.entityId = 4 THEN u.sold ELSE 0 END), 0)
+            FROM UserAppSold u
+            INNER JOIN Distribution d ON (
+                d.issuedByType.appIssuedId = 1
+                AND d.issuedToType.appIssuedId = 4
+                AND d.isActive = 1
+                AND d.amount = :amount
+                AND d.campus.campusId IN :campusIds
+                AND u.rangeStartNo = d.appStartNo
+                AND u.rangeEndNo = d.appEndNo
+                AND u.acdcYearId = d.academicYear.acdcYearId
+            )
+            WHERE u.isActive = 1
+              AND u.entityId IN (2, 3, 4)
+            GROUP BY u.acdcYearId
+            ORDER BY u.acdcYearId
+        """)
+    List<Object[]> getYearWiseIssuedAndSoldByAmountAndDgmCampusSeries(@Param("amount") Float amount, @Param("campusIds") List<Integer> campusIds);
+   
+    // PRO/PRINCIPAL/VICE PRINCIPAL: Get year-wise data for distributions to that campus
+    // Match series from Distribution to UserAppSold
+    @Query("""
+            SELECT
+                u.acdcYearId,
+                COALESCE(SUM(u.totalAppCount), 0),
+                COALESCE(SUM(CASE WHEN u.entityId = 4 THEN u.sold ELSE 0 END), 0)
+            FROM UserAppSold u
+            INNER JOIN Distribution d ON (
+                d.isActive = 1
+                AND d.amount = :amount
+                AND d.campus.campusId = :campusId
+                AND u.rangeStartNo = d.appStartNo
+                AND u.rangeEndNo = d.appEndNo
+                AND u.acdcYearId = d.academicYear.acdcYearId
+            )
+            WHERE u.isActive = 1
+              AND u.entityId IN (2, 3, 4)
+            GROUP BY u.acdcYearId
+            ORDER BY u.acdcYearId
+        """)
+    List<Object[]> getYearWiseIssuedAndSoldByAmountAndCampusSeries(@Param("amount") Float amount, @Param("campusId") Integer campusId);
+   
     @Query("""
             SELECT
                 u.acdcYearId,

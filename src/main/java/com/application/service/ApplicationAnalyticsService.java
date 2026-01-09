@@ -1202,13 +1202,64 @@ MetricsAggregateDTO totalMetrics = curr; // instead of summing every year
             // Zone analytics uses: entity_id = 2 (Zone) + Admin→DGM + Admin→Campus distributions
             rows = userAppSoldRepository.getYearWiseIssuedAndSoldByZone(zoneId);
         } else if (amount != null && employeeId != null) {
-            // NEW LOGIC: Cards graph - Match series from Distribution to UserAppSold
-            // Find distributions by created_by, is_active=1, amount
-            // Match series (appStartNo-appEndNo) with UserAppSold (rangeStartNo-rangeEndNo)
-            // Sum totalAppCount from UserAppSold for matching series
-            System.out.println("Filter: Amount + Employee Series Match (amt=" + amount + ", empId=" + employeeId + ")");
-            System.out.println("Using series-based matching: Distribution series -> UserAppSold totalAppCount");
-            rows = userAppSoldRepository.getYearWiseIssuedAndSoldByAmountAndEmployeeSeries(amount, employeeId);
+            // NEW LOGIC: Role-based series matching from Distribution to UserAppSold
+            // Get employee role and apply role-specific logic
+            List<SCEmployeeEntity> employeeList = scEmployeeRepository.findByEmpId(employeeId);
+            if (employeeList.isEmpty()) {
+                System.out.println("⚠️ Employee " + employeeId + " not found, using default amount filter");
+                rows = userAppSoldRepository.getYearWiseIssuedAndSoldByAmount(amount);
+            } else {
+                SCEmployeeEntity employee = employeeList.get(0);
+                String role = employee.getEmpStudApplicationRole();
+                if (role == null) {
+                    System.out.println("⚠️ Employee " + employeeId + " has null role, using default amount filter");
+                    rows = userAppSoldRepository.getYearWiseIssuedAndSoldByAmount(amount);
+                } else {
+                    String trimmedRole = role.trim().toUpperCase();
+                    System.out.println("Filter: Amount + Employee Series Match (amt=" + amount + ", empId=" + employeeId + ", role=" + trimmedRole + ")");
+                    
+                    if (trimmedRole.equals("ADMIN")) {
+                        // ADMIN: Find distributions created by this admin, match series
+                        System.out.println("Using ADMIN logic: Distribution created_by -> UserAppSold totalAppCount");
+                        rows = userAppSoldRepository.getYearWiseIssuedAndSoldByAmountAndEmployeeSeries(amount, employeeId);
+                    } else if (trimmedRole.equals("ZONAL ACCOUNTANT")) {
+                        // ZONAL ACCOUNTANT: Find distributions where Admin gave to DGM or Campus in that zone
+                        List<ZonalAccountant> zonalRecords = zonalAccountantRepository.findActiveByEmployee(employeeId);
+                        if (zonalRecords == null || zonalRecords.isEmpty() || zonalRecords.get(0).getZone() == null) {
+                            System.out.println("⚠️ Zonal Accountant " + employeeId + " not mapped to zone, using default amount filter");
+                            rows = userAppSoldRepository.getYearWiseIssuedAndSoldByAmount(amount);
+                        } else {
+                            Integer empZoneId = zonalRecords.get(0).getZone().getZoneId();
+                            System.out.println("Using ZONAL ACCOUNTANT logic: Admin->DGM/Campus in zone " + empZoneId + " -> UserAppSold totalAppCount");
+                            rows = userAppSoldRepository.getYearWiseIssuedAndSoldByAmountAndZoneSeries(amount, empZoneId);
+                        }
+                    } else if (trimmedRole.equals("DGM")) {
+                        // DGM: Find distributions where Admin gave to Campus under that DGM
+                        List<Integer> dgmCampusIds = dgmRepository.findCampusIdsByEmployeeId(employeeId);
+                        if (dgmCampusIds == null || dgmCampusIds.isEmpty()) {
+                            System.out.println("⚠️ DGM " + employeeId + " has no campuses, using default amount filter");
+                            rows = userAppSoldRepository.getYearWiseIssuedAndSoldByAmount(amount);
+                        } else {
+                            System.out.println("Using DGM logic: Admin->Campus (campuses: " + dgmCampusIds + ") -> UserAppSold totalAppCount");
+                            rows = userAppSoldRepository.getYearWiseIssuedAndSoldByAmountAndDgmCampusSeries(amount, dgmCampusIds);
+                        }
+                    } else if (trimmedRole.equals("PRO") || trimmedRole.contains("PRINCIPAL") || trimmedRole.contains("VICE")) {
+                        // PRO/PRINCIPAL/VICE PRINCIPAL: Find distributions to that campus
+                        int empCampusId = employee.getEmpCampusId();
+                        if (empCampusId <= 0) {
+                            System.out.println("⚠️ " + trimmedRole + " " + employeeId + " has invalid campusId, using default amount filter");
+                            rows = userAppSoldRepository.getYearWiseIssuedAndSoldByAmount(amount);
+                        } else {
+                            System.out.println("Using " + trimmedRole + " logic: Distributions to campus " + empCampusId + " -> UserAppSold totalAppCount");
+                            rows = userAppSoldRepository.getYearWiseIssuedAndSoldByAmountAndCampusSeries(amount, empCampusId);
+                        }
+                    } else {
+                        // Unknown role, use default
+                        System.out.println("⚠️ Unknown role '" + trimmedRole + "', using default amount filter");
+                        rows = userAppSoldRepository.getYearWiseIssuedAndSoldByAmount(amount);
+                    }
+                }
+            }
         } else if (amount != null) {
             System.out.println("Filter: Amount (amt=" + amount + ")");
             rows = userAppSoldRepository.getYearWiseIssuedAndSoldByAmount(amount);
