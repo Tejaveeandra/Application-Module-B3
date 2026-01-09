@@ -313,10 +313,10 @@ public class ApplicationNewConfirmationService {
     @Transactional
     public StudentAcademicDetails saveOrUpdateConfirmation(StudentConfirmationDTO dto) {
 
-        // --- 1. Find the Student ---
-        StudentAcademicDetails student = academicRepo.findByStudAdmsNo(dto.getStudAdmsNo())
+        // --- 1. Find the Student (only active records with is_active = 1) ---
+        StudentAcademicDetails student = academicRepo.findByStudAdmsNoAndIs_active(dto.getStudAdmsNo(), 1)
                 .orElseThrow(() -> new EntityNotFoundException(
-                        "Student not found with Admission No: " + dto.getStudAdmsNo()));
+                        "Student not found with Admission No: " + dto.getStudAdmsNo() + " or record is not active"));
 
         // --- 2. Update Academic Details ---
         student.setHt_no(dto.getHtNo());

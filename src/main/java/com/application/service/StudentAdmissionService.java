@@ -1138,9 +1138,9 @@ public class StudentAdmissionService {
     }
 
     public ApplicationDetailsDTO getApplicationDetailsByAdmissionNo(Long studAdmsNo) {
-        // 1. Fetch the main academic record
-        StudentAcademicDetails student = academicDetailsRepo.findByStudAdmsNo(studAdmsNo)
-                .orElseThrow(() -> new EntityNotFoundException("Student not found with Admission No: " + studAdmsNo));
+        // 1. Fetch the main academic record (only active records with is_active = 1)
+        StudentAcademicDetails student = academicDetailsRepo.findByStudAdmsNoAndIs_active(studAdmsNo, 1)
+                .orElseThrow(() -> new EntityNotFoundException("Student not found with Admission No: " + studAdmsNo + " or record is not active"));
 
         // 2. Fetch related records (handle possibility of them being null)
         Optional<StudentPersonalDetails> personalOpt = personalDetailsRepo.findByStudentAcademicDetails(student);
@@ -1297,8 +1297,8 @@ public class StudentAdmissionService {
         Long studAdmsNo = saleDTO.getStudAdmsNo();
 
         // 1. Fetch main entity
-        StudentAcademicDetails academicDetails = academicDetailsRepo.findByStudAdmsNo(studAdmsNo)
-                .orElseThrow(() -> new EntityNotFoundException("Student not found with Admission No: " + studAdmsNo));
+        StudentAcademicDetails academicDetails = academicDetailsRepo.findByStudAdmsNoAndIs_active(studAdmsNo, 1)
+                .orElseThrow(() -> new EntityNotFoundException("Student not found with Admission No: " + studAdmsNo + " or record is not active"));
 
         // 2. Fetch related records
         StudentPersonalDetails personalDetails = personalDetailsRepo.findByStudentAcademicDetails(academicDetails)
