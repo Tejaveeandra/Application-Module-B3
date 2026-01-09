@@ -53,16 +53,26 @@ public class ApplicationDamagedService {
     @PersistenceContext
     private EntityManager entityManager;
 
-    @Autowired private AppStatusRepository appStatusRepository;
-    @Autowired private StatusRepository statusRepository;
-    @Autowired private EmployeeRepository employeeRepository;
-    @Autowired private CampusRepository campusRepository;
-    @Autowired private CampusProViewRepository campusProViewRepository;
-    @Autowired private AppStatusTrackViewRepository appStatusTrackViewRepository;
-    @Autowired public ApplicationStatusRepository applicationStatusRepository;
-    @Autowired public DgmRepository dgmRepository;
-    @Autowired public ZoneRepository zoneRepository;
-    @Autowired private StudentAcademicDetailsRepository studentAcademicDetailsRepository;
+    @Autowired
+    private AppStatusRepository appStatusRepository;
+    @Autowired
+    private StatusRepository statusRepository;
+    @Autowired
+    private EmployeeRepository employeeRepository;
+    @Autowired
+    private CampusRepository campusRepository;
+    @Autowired
+    private CampusProViewRepository campusProViewRepository;
+    @Autowired
+    private AppStatusTrackViewRepository appStatusTrackViewRepository;
+    @Autowired
+    public ApplicationStatusRepository applicationStatusRepository;
+    @Autowired
+    public DgmRepository dgmRepository;
+    @Autowired
+    public ZoneRepository zoneRepository;
+    @Autowired
+    private StudentAcademicDetailsRepository studentAcademicDetailsRepository;
 
     // ---------------------- READ METHODS (CACHEABLE) ----------------------
 
@@ -84,7 +94,7 @@ public class ApplicationDamagedService {
     }
 
     private Appstatusdtodamaged mapToDTO(AppStatusTrackView view) {
-    	Appstatusdtodamaged dto = new Appstatusdtodamaged();
+        Appstatusdtodamaged dto = new Appstatusdtodamaged();
 
         dto.setApplicationNo(view.getNum());
         dto.setProEmpId(view.getPro_emp_id());
@@ -121,7 +131,6 @@ public class ApplicationDamagedService {
         return applicationStatusRepository.findByIsActive(1);
     }
 
-
     @Cacheable(value = "zonesDropdown")
     public List<GenericDropdownDTO> getAllZones() {
         return zoneRepository.findAllActiveZonesForDropdown();
@@ -130,14 +139,16 @@ public class ApplicationDamagedService {
     @Cacheable(value = "campusesByDgm", key = "#dgmId")
     public List<Campus> getCampusesByDgmId(int dgmId) {
         List<Dgm> dgmEntries = dgmRepository.findByDgmId(dgmId);
-        if (dgmEntries.isEmpty()) return List.of();
+        if (dgmEntries.isEmpty())
+            return List.of();
         return dgmEntries.stream().map(Dgm::getCampus).collect(Collectors.toList());
     }
 
     @Cacheable(value = "appStatusDetails", key = "#appNo")
     public Optional<AppStatusDetailsDTO> getAppStatusDetails(int appNo) {
         Optional<AppStatus> appStatusOptional = appStatusRepository.findByApplicationNumber(appNo);
-        if (appStatusOptional.isEmpty()) return Optional.empty();
+        if (appStatusOptional.isEmpty())
+            return Optional.empty();
 
         AppStatus appStatus = appStatusOptional.get();
         AppStatusDetailsDTO dto = new AppStatusDetailsDTO();
@@ -171,46 +182,43 @@ public class ApplicationDamagedService {
     public List<CampusDto> getCampusDtosByZoneId(int zoneId) {
         Optional<Zone> zoneOptional = zoneRepository.findById(zoneId);
         return zoneOptional.map(zone -> campusRepository.findByZoneAsDto(zone))
-                           .orElse(List.of());
+                .orElse(List.of());
     }
 
     // ---------------------- WRITE METHODS ----------------------
 
-  public AppStatusResponseDTO  saveOrUpdateApplicationStatus(ApplicationDamagedDto dto) {
- 
+    public AppStatusResponseDTO saveOrUpdateApplicationStatus(ApplicationDamagedDto dto) {
+
         if (dto == null)
             throw new IllegalArgumentException("DTO cannot be null");
- 
+
         Long appNo = dto.getApplicationNo().longValue();
- 
+
         // 1️⃣ Check if application already used (Exists in Student table)
-        Optional<StudentAcademicDetails> studentOpt =
-                studentAcademicDetailsRepository.findByStudAdmsNo(appNo);
- 
+        Optional<StudentAcademicDetails> studentOpt = studentAcademicDetailsRepository
+                .findByStudAdmsNoAndIs_active(appNo, 1);
+
         if (studentOpt.isPresent()) {
             String studStatus = studentOpt.get().getStatus().getStatus_type();
             throw new ApplicationAlreadyExistsException(
-                    "Application already USED with status: " + studStatus
-            );
+                    "Application already USED with status: " + studStatus);
         }
- 
+
         // 2️⃣ Check if already exists in app_status
-        Optional<AppStatus> existingAppStatusOpt =
-                appStatusRepository.findByApp_no(dto.getApplicationNo());
- 
+        Optional<AppStatus> existingAppStatusOpt = appStatusRepository.findByApp_no(dto.getApplicationNo());
+
         AppStatus appStatus;
- 
+
         if (existingAppStatusOpt.isPresent()) {
             // If exists → check whether at PRO stage
             appStatus = existingAppStatusOpt.get();
- 
+
             if (appStatus.getStatus().getStatus_id() != 1 && appStatus.getStatus().getStatus_id() != 2) { // 1 = PRO
                 throw new IllegalStateException(
                         "Application is not with PRO. Current status: " +
-                        appStatus.getStatus().getStatus_type()
-                );
+                                appStatus.getStatus().getStatus_type());
             }
- 
+
             // Allowed to damage → Updating existing record
         } else {
             // Create a new damage record
@@ -218,23 +226,23 @@ public class ApplicationDamagedService {
             appStatus.setApp_no(dto.getApplicationNo());
             appStatus.setCreated_by(2);
         }
- 
+
         // 3️⃣ Fetch reference objects
         Status status = statusRepository.findById(dto.getStatusId())
                 .orElseThrow(() -> new EntityNotFoundException("Status not found"));
- 
+
         Campus campus = campusRepository.findById(dto.getCampusId())
                 .orElseThrow(() -> new EntityNotFoundException("Campus not found"));
- 
+
         Employee proEmployee = employeeRepository.findById(dto.getProId())
                 .orElseThrow(() -> new EntityNotFoundException("PRO Employee not found"));
- 
+
         Zone zone = zoneRepository.findById(dto.getZoneId())
                 .orElseThrow(() -> new EntityNotFoundException("Zone not found"));
- 
+
         Employee dgmEmployee = employeeRepository.findById(dto.getDgmEmpId())
                 .orElseThrow(() -> new EntityNotFoundException("DGM Employee not found"));
- 
+
         // 4️⃣ Set values
         appStatus.setReason(dto.getReason());
         appStatus.setStatus(status); // here status = DAMAGED
@@ -242,25 +250,25 @@ public class ApplicationDamagedService {
         appStatus.setEmployee(proEmployee);
         appStatus.setZone(zone);
         appStatus.setEmployee2(dgmEmployee);
-        if (dto.getStatusId() == 3) {        // AVAILABLE
+        if (dto.getStatusId() == 3) { // AVAILABLE
             appStatus.setIs_active(0);
         } else {
-            appStatus.setIs_active(1);        // DAMAGED etc.
+            appStatus.setIs_active(1); // DAMAGED etc.
         }
         appStatus.setUpdated_date(LocalDateTime.now());
- 
+
         // 5️⃣ Save
         AppStatus saved = appStatusRepository.save(appStatus);
- 
+
         return convertToDTO(saved);
     }
+
     private AppStatusResponseDTO convertToDTO(AppStatus entity) {
-    	
- 
-    	ApplicationStatus status = applicationStatusRepository.findById(entity.getStatus().getStatus_id())
+
+        ApplicationStatus status = applicationStatusRepository.findById(entity.getStatus().getStatus_id())
                 .orElse(null);
         AppStatusResponseDTO dto = new AppStatusResponseDTO();
- 
+
         dto.setAppNo(entity.getApp_no());
         dto.setStatus(status != null ? status.getStatus() : null);
         dto.setCampusName(entity.getCampus().getCampusName());
@@ -269,10 +277,9 @@ public class ApplicationDamagedService {
         dto.setDgmName(entity.getEmployee2().getFirst_name());
         dto.setReason(entity.getReason());
         dto.setUpdatedDate(entity.getUpdated_date());
- 
+
         return dto;
     }
- 
 
     // ---------------------- SUPPORT METHODS ----------------------
 
