@@ -207,9 +207,9 @@ public class ApplicationFastSale {
 		academicDetails.setStudAdmsNo(formData.getStudAdmsNo());
 		academicDetails.setFirst_name(formData.getFirstName());
 		academicDetails.setLast_name(formData.getLastName());
-		academicDetails.setAdms_date(LocalDate.now());
+		academicDetails.setAdms_date(LocalDateTime.now());
 		academicDetails.setApaar_no(formData.getApaarNo());
-		academicDetails.setApp_sale_date(new Date());
+		academicDetails.setApp_sale_date(LocalDateTime.now());
 
 		academicDetails.setAdmission_referred_by(formData.getAdmissionReferredBy());
 
@@ -593,8 +593,17 @@ public class ApplicationFastSale {
 			schoolTypeRepository.findById(formData.getSchoolType()).ifPresent(academicDetails::setCampusSchoolType);
 
 		// Fields that must be set/updated regardless of prior state
-		academicDetails.setAdms_date(LocalDate.now());
-		academicDetails.setApp_sale_date(formData.getAppSaleDate());
+		academicDetails.setAdms_date(LocalDateTime.now());
+
+		// Convert Date to LocalDateTime for app_sale_date
+		if (formData.getAppSaleDate() != null) {
+			LocalDateTime saleDateTime = formData.getAppSaleDate().toInstant()
+					.atZone(java.time.ZoneId.systemDefault())
+					.toLocalDateTime();
+			academicDetails.setApp_sale_date(saleDateTime);
+		} else {
+			academicDetails.setApp_sale_date(LocalDateTime.now());
+		}
 		academicDetails.setAdmission_referred_by(formData.getAdmissionReferedBy());
 
 		if (formData.getProReceiptNo() != null) {
@@ -962,7 +971,12 @@ public class ApplicationFastSale {
 		dto.setFirstName(academic.getFirst_name());
 		dto.setLastName(academic.getLast_name());
 		dto.setApaarNo(academic.getApaar_no());
-		dto.setAppSaleDate(academic.getApp_sale_date());
+		// Convert LocalDateTime to Date for DTO
+		if (academic.getApp_sale_date() != null) {
+			java.util.Date appSaleDate = java.util.Date
+					.from(academic.getApp_sale_date().atZone(java.time.ZoneId.systemDefault()).toInstant());
+			dto.setAppSaleDate(appSaleDate);
+		}
 		dto.setProReceiptNo(academic.getPro_receipt_no());
 		dto.setHallTicketNo(academic.getHt_no());
 		dto.setScoreAppNo(academic.getScore_app_no());
@@ -1315,7 +1329,12 @@ public class ApplicationFastSale {
 		}
 
 		if (formData.getAppSaleDate() != null) {
-			academicDetails.setApp_sale_date(formData.getAppSaleDate());
+			// Convert Date to LocalDateTime for app_sale_date
+			if (formData.getAppSaleDate() != null) {
+				LocalDateTime saleDateTime = formData.getAppSaleDate().toInstant()
+						.atZone(java.time.ZoneId.systemDefault()).toLocalDateTime();
+				academicDetails.setApp_sale_date(saleDateTime);
+			}
 		}
 
 		if (formData.getProReceiptNo() != null) {
@@ -1737,6 +1756,9 @@ public class ApplicationFastSale {
 								+ " or record is not active"));
 
 		// 2. Update/Set Enrollment Details on StudentAcademicDetails
+		// Set Confirmation Date
+		academicDetails.setApp_conf_date(LocalDateTime.now());
+
 		// ... (Enrollment update logic remains the same) ...
 
 		// Academic Year

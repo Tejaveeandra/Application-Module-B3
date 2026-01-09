@@ -1,6 +1,7 @@
 package com.application.service;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -709,8 +710,19 @@ public class StudentAdmissionService {
         academicDetails.setFirst_name(formData.getFirstName());
         academicDetails.setLast_name(formData.getLastName());
         academicDetails.setApaar_no(formData.getApaarNo());
-        academicDetails.setAdms_date(LocalDate.now());
-        academicDetails.setApp_sale_date(formData.getAppSaleDate());
+        if (academicDetails.getAdms_date() == null) {
+            academicDetails.setAdms_date(LocalDateTime.now());
+        }
+
+        // Convert Date to LocalDateTime for app_sale_date
+        if (formData.getAppSaleDate() != null) {
+            LocalDateTime saleDateTime = formData.getAppSaleDate().toInstant()
+                    .atZone(java.time.ZoneId.systemDefault())
+                    .toLocalDateTime();
+            academicDetails.setApp_sale_date(saleDateTime);
+        } else {
+            academicDetails.setApp_sale_date(LocalDateTime.now());
+        }
         academicDetails.setIs_active(1);
 
         academicDetails.setAdmission_referred_by(formData.getAdmissionReferedBy());
@@ -997,9 +1009,18 @@ public class StudentAdmissionService {
         academicDetails.setLast_name(formData.getLastName());
         academicDetails.setApaar_no(formData.getApaarNo());
         if (academicDetails.getAdms_date() == null) {
-            academicDetails.setAdms_date(LocalDate.now());
+            academicDetails.setAdms_date(LocalDateTime.now());
         }
-        academicDetails.setApp_sale_date(formData.getAppSaleDate());
+
+        // Convert Date to LocalDateTime for app_sale_date
+        if (formData.getAppSaleDate() != null) {
+            LocalDateTime saleDateTime = formData.getAppSaleDate().toInstant()
+                    .atZone(java.time.ZoneId.systemDefault())
+                    .toLocalDateTime();
+            academicDetails.setApp_sale_date(saleDateTime);
+        } else {
+            academicDetails.setApp_sale_date(LocalDateTime.now());
+        }
 
         // Set the String value in the admission_referred_by column
         academicDetails.setAdmission_referred_by(formData.getAdmissionReferedBy());
