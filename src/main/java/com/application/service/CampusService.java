@@ -1,5 +1,6 @@
 package com.application.service;
  
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -495,6 +496,8 @@ public class CampusService {
         System.out.println("Old Receiver EmpId: " + existingDistribution.getIssued_to_emp_id());
         System.out.println("Old Receiver ProId: " + existingDistribution.getIssued_to_pro_id());
         existingDistribution.setIsActive(0);
+        // Update timestamp when deactivating distribution
+        existingDistribution.setIssueDate(LocalDateTime.now());
         distributionRepository.saveAndFlush(existingDistribution);
         System.out.println("========================================================");
  
@@ -913,7 +916,7 @@ private List<int[]> calculateRemainingRanges(int start, int end, List<int[]> giv
         if (formDto.getIssueDate() != null) {
             distribution.setIssueDate(formDto.getIssueDate().atStartOfDay()); // Convert to LocalDateTime
         } else {
-            distribution.setIssueDate(java.time.LocalDateTime.now());
+            distribution.setIssueDate(LocalDateTime.now());
         }
  
         distribution.setIsActive(1);
@@ -935,7 +938,8 @@ private List<int[]> calculateRemainingRanges(int start, int end, List<int[]> giv
         newDist.setAppStartNo(oldDist.getAppStartNo());
         newDist.setAppEndNo(oldDist.getAppEndNo());
         newDist.setTotalAppCount(oldDist.getTotalAppCount());
-        newDist.setIssueDate(oldDist.getIssueDate());
+        // Set current timestamp for new distribution
+        newDist.setIssueDate(LocalDateTime.now());
         newDist.setIsActive(1);
         newDist.setCreated_by(oldDist.getCreated_by());
     }
@@ -967,7 +971,9 @@ private List<int[]> calculateRemainingRanges(int start, int end, List<int[]> giv
        
         remainder.setIsActive(1);
         remainder.setAmount(originalDist.getAmount()); // Keep Amount
- 
+        // Ensure timestamp is set for new remainder distribution
+        remainder.setIssueDate(LocalDateTime.now());
+
         System.out.println("=== DISTRIBUTION SAVE (REMAINDER) - CampusService ===");
         System.out.println("Operation: CREATE REMAINDER DISTRIBUTION");
         System.out.println("Remainder Range: " + remainder.getAppStartNo() + " - " + remainder.getAppEndNo());

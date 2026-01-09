@@ -1,4 +1,5 @@
 package com.application.service;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -851,6 +852,8 @@ public List<AppSeriesDTO> getActiveSeriesForReceiver(int receiverId, int academi
         System.out.println("Old Receiver EmpId: " + existingDistribution.getIssued_to_emp_id());
         System.out.println("Setting isActive = 0");
         existingDistribution.setIsActive(0);
+        // Update timestamp when deactivating distribution
+        existingDistribution.setIssueDate(LocalDateTime.now());
         distributionRepository.saveAndFlush(existingDistribution);
         System.out.println("==========================================");
  
@@ -1334,7 +1337,7 @@ private List<int[]> calculateRemainingRanges(int start, int end, List<int[]> giv
         distribution.setAmount(formDto.getApplication_Amount());
        
         // Fix for Date (Always use Now to prevent nulls)
-        distribution.setIssueDate(java.time.LocalDateTime.now());
+        distribution.setIssueDate(LocalDateTime.now());
        
         distribution.setIsActive(1);
         distribution.setCreated_by(formDto.getUserId());
@@ -1356,7 +1359,8 @@ private List<int[]> calculateRemainingRanges(int start, int end, List<int[]> giv
            newDist.setAppStartNo(oldDist.getAppStartNo());
            newDist.setAppEndNo(oldDist.getAppEndNo());
            newDist.setTotalAppCount(oldDist.getTotalAppCount());
-           newDist.setIssueDate(oldDist.getIssueDate());
+           // Set current timestamp for new distribution
+           newDist.setIssueDate(LocalDateTime.now());
            newDist.setIsActive(1);
            newDist.setCreated_by(oldDist.getCreated_by());
         }

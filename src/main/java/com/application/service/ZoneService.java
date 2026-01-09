@@ -451,6 +451,8 @@ public class ZoneService {
         System.out.println("Old Range: " + existingDist.getAppStartNo() + " - " + existingDist.getAppEndNo());
         System.out.println("Old Receiver EmpId: " + existingDist.getIssued_to_emp_id());
         existingDist.setIsActive(0);
+        // Update timestamp when deactivating distribution
+        existingDist.setIssueDate(LocalDateTime.now());
         distributionRepository.saveAndFlush(existingDist);
         System.out.println("=====================================================");
 
@@ -517,7 +519,8 @@ public class ZoneService {
         remainder.setIssuedByType(originalDist.getIssuedByType());
         remainder.setIssuedToType(originalDist.getIssuedToType());
         remainder.setCreated_by(originalDist.getCreated_by());
-        remainder.setIssueDate(originalDist.getIssueDate() != null ? originalDist.getIssueDate() : LocalDateTime.now());
+        // Set current timestamp for new remainder distribution
+        remainder.setIssueDate(LocalDateTime.now());
         remainder.setAmount(originalDist.getAmount());
         remainder.setIssued_to_emp_id(originalDist.getIssued_to_emp_id());
         remainder.setIssued_to_pro_id(originalDist.getIssued_to_pro_id());
