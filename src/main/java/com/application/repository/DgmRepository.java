@@ -82,5 +82,8 @@ public interface DgmRepository extends JpaRepository<Dgm, Integer> {
 		
 		@Query("SELECT d FROM Dgm d WHERE d.employee.id = :empId AND d.isActive = 1")
 		List<Dgm> findAllByEmployeeId(@Param("empId") Integer empId);
+		
+		@Query("SELECT d FROM Dgm d WHERE d.employee.emp_id = :empId AND d.isActive = 1")
+		List<Dgm> findDgmWithCampusesByEmployeeId(@Param("empId") Integer empId);
 
 }

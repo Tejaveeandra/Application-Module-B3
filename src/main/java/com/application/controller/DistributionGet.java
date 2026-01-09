@@ -16,6 +16,7 @@ import com.application.dto.EmployeesDto;
 import com.application.dto.GenericDropdownDTO;
 import com.application.dto.LocationAutoFillDTO;
 import com.application.dto.EmployeeLocationDTO;
+import com.application.dto.DgmWithCampusesDTO;
 import com.application.entity.AcademicYear;
 import com.application.entity.BalanceTrack;
 import com.application.entity.City;
@@ -338,8 +339,14 @@ public class DistributionGet {
                  return ResponseEntity.notFound().build();
              }
              
-             return ResponseEntity.ok(location);
-         }
+            return ResponseEntity.ok(location);
+        }
+        
+        @GetMapping("/dgm-with-campuses/{employeeId}")
+        public ResponseEntity<List<DgmWithCampusesDTO>> getDgmWithCampuses(@PathVariable Integer employeeId) {
+            List<DgmWithCampusesDTO> result = applicationService.getDgmWithCampusesByEmployeeId(employeeId);
+            return ResponseEntity.ok(result);
+        }
 
        
 }

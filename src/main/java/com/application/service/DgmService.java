@@ -35,6 +35,7 @@ import com.application.repository.ZonalAccountantRepository;
 import com.application.repository.ZoneRepository;
 import com.application.repository.SCEmployeeRepository;
 import com.application.dto.EmployeeLocationDTO;
+import com.application.dto.DgmWithCampusesDTO;
 import com.application.entity.SCEmployeeEntity;
 import com.application.entity.State;
 import com.application.entity.Zone;
@@ -436,6 +437,50 @@ public LocationAutoFillDTO getAutoPopulateData(int empId, String category) {
             districtId,
             districtName
         );
+    }
+    
+    /**
+     * Get DGM names and their associated campuses based on employee ID
+     * Returns a list of DGM records with their campuses for the given employee
+     */
+    public List<DgmWithCampusesDTO> getDgmWithCampusesByEmployeeId(Integer employeeId) {
+        // Fetch all DGM records for this employee
+        List<Dgm> dgmRecords = dgmRepository.findDgmWithCampusesByEmployeeId(employeeId);
+        
+        if (dgmRecords == null || dgmRecords.isEmpty()) {
+            return new ArrayList<>();
+        }
+        
+        // Group by DGM employee (since one employee can have multiple DGM records for different campuses)
+        // We'll create a map to group campuses by DGM employee
+        java.util.Map<Integer, DgmWithCampusesDTO> dgmMap = new java.util.HashMap<>();
+        
+        for (Dgm dgm : dgmRecords) {
+            Integer empId = dgm.getEmployee().getEmp_id();
+            String dgmName = dgm.getEmployee().getFirst_name() + " " + dgm.getEmployee().getLast_name();
+            
+            // Get or create DGM entry
+            DgmWithCampusesDTO dto = dgmMap.get(empId);
+            if (dto == null) {
+                dto = new DgmWithCampusesDTO();
+                dto.setEmpId(empId);
+                dto.setDgmName(dgmName);
+                dto.setCampusIds(new ArrayList<>());
+                dgmMap.put(empId, dto);
+            }
+            
+            // Add campus ID to the list (avoid duplicates)
+            if (dgm.getCampus() != null) {
+                Integer campusId = dgm.getCampus().getCampusId();
+                
+                // Check if campus ID already exists in the list
+                if (!dto.getCampusIds().contains(campusId)) {
+                    dto.getCampusIds().add(campusId);
+                }
+            }
+        }
+        
+        return new ArrayList<>(dgmMap.values());
     }
    
  
