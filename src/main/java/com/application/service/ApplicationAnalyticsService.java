@@ -1269,15 +1269,15 @@ MetricsAggregateDTO totalMetrics = curr; // instead of summing every year
                             rows.add(new Object[]{entry.getKey(), entry.getValue()[0], entry.getValue()[1]});
                         }
                     } else if (trimmedRole.equals("ZONAL ACCOUNTANT")) {
-                        // ZONAL ACCOUNTANT: Find distributions where Admin gave to DGM or Campus in that zone
+                        // ZONAL ACCOUNTANT: Directly query UserAppSold for that zone with amount filter, using distinct series
                         List<ZonalAccountant> zonalRecords = zonalAccountantRepository.findActiveByEmployee(employeeId);
                         if (zonalRecords == null || zonalRecords.isEmpty() || zonalRecords.get(0).getZone() == null) {
                             System.out.println("⚠️ Zonal Accountant " + employeeId + " not mapped to zone, using default amount filter");
                             rows = userAppSoldRepository.getYearWiseIssuedAndSoldByAmount(amount);
                         } else {
                             Integer empZoneId = zonalRecords.get(0).getZone().getZoneId();
-                            System.out.println("Using ZONAL ACCOUNTANT logic: Admin->DGM/Campus in zone " + empZoneId + " -> UserAppSold totalAppCount");
-                            rows = userAppSoldRepository.getYearWiseIssuedAndSoldByAmountAndZoneSeries(amount, empZoneId);
+                            System.out.println("Using ZONAL ACCOUNTANT logic: Direct query UserAppSold (zone: " + empZoneId + ", amount: " + amount + ") with distinct series");
+                            rows = userAppSoldRepository.getYearWiseIssuedAndSoldByZoneAndAmountWithDistinct(empZoneId, amount);
                         }
                     } else if (trimmedRole.equals("DGM")) {
                         // DGM: Use entity_id = 3 directly from UserAppSold (not series matching)

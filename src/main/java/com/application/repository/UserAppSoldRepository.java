@@ -475,6 +475,33 @@ public interface UserAppSoldRepository extends JpaRepository<UserAppSold, Long> 
             ORDER BY u.acdcYearId
         """)
     List<Object[]> getYearWiseIssuedAndSoldByZoneAndAmount(@Param("zoneId") Integer zoneId, @Param("amount") Float amount);
+    
+    // ZONAL ACCOUNTANT: Get year-wise data directly from UserAppSold for zone with amount filter
+    // Uses distinct series counting to avoid double counting when same series appears in multiple entity_ids
+    // For zone: entity_id = 2 for issued, entity_id = 4 for sold
+    @Query(value = """
+            SELECT
+                series_data.acdc_year_id,
+                COALESCE(SUM(series_data.total_app_count), 0),
+                COALESCE(SUM(series_data.sold_count), 0)
+            FROM (
+                SELECT 
+                    u.acdc_year_id,
+                    u.range_start_no,
+                    u.range_end_no,
+                    MAX(CASE WHEN u.entity_id = 2 THEN u.total_app_count ELSE 0 END) as total_app_count,
+                    MAX(CASE WHEN u.entity_id = 4 THEN u.sold ELSE 0 END) as sold_count
+                FROM sce_application.sce_user_app_sold u
+                WHERE u.is_active = 1
+                  AND u.entity_id IN (2, 4)
+                  AND u.zone_id = :zoneId
+                  AND u.amount = :amount
+                GROUP BY u.acdc_year_id, u.range_start_no, u.range_end_no
+            ) series_data
+            GROUP BY series_data.acdc_year_id
+            ORDER BY series_data.acdc_year_id
+            """, nativeQuery = true)
+    List<Object[]> getYearWiseIssuedAndSoldByZoneAndAmountWithDistinct(@Param("zoneId") Integer zoneId, @Param("amount") Float amount);
    
     @Query("""
             SELECT
