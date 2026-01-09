@@ -187,10 +187,11 @@ public class DistributionGet {
         @GetMapping("/pros/{campusId}")//used/c
         public ResponseEntity<List<GenericDropdownDTO>> getEmployeeDropdown(
                 @PathVariable int campusId) {
- 
+
             // 1. Call the service layer method to execute the JPQL query
-            List<GenericDropdownDTO> employees = dgmService.getEmployeeDropdownByCampus(campusId);
- 
+            // This method filters by campusId and returns only active PROs (is_active = 1)
+            List<GenericDropdownDTO> employees = campusService.getEmployeeDropdownByCampus(campusId);
+
             // 2. Return the list with an HTTP 200 OK status
             if (employees.isEmpty()) {
                 // Optional: Return 204 No Content or an empty list if no results
