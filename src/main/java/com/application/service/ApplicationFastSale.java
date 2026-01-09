@@ -1295,10 +1295,10 @@ public class ApplicationFastSale {
 	public String updateApplicationSale(Long studAdmsNo, StudentApplicationUpdateDTO formData) {
 
 		// ==============================================================
-		// 1. FETCH EXISTING ENTITIES (UPSERT)
+		// 1. FETCH EXISTING ENTITIES (UPSERT) - Only active records (is_active = 1)
 		// ==============================================================
-		StudentAcademicDetails academicDetails = studentAcademicDetailsRepository.findByStudAdmsNo(studAdmsNo)
-				.orElseThrow(() -> new EntityNotFoundException("Student not found: " + studAdmsNo));
+		StudentAcademicDetails academicDetails = studentAcademicDetailsRepository.findByStudAdmsNoAndIs_active(studAdmsNo, 1)
+				.orElseThrow(() -> new EntityNotFoundException("Student not found: " + studAdmsNo + " or record is not active"));
 
 		StudentPersonalDetails personalDetails = personalDetailsRepository.findByStudentAcademicDetails(academicDetails)
 				.orElseGet(StudentPersonalDetails::new);
@@ -1685,9 +1685,9 @@ public class ApplicationFastSale {
 					pc.setReason(c.getProConcessionReason());
 					pc.setIs_active(1);
 
-					// 3. FIXED: Avoid the "int == null" error by checking against 0
-					// If the ID is 0, it's a new record. If it's > 0, it's an update.
-					if (pc.getPro_conc_id() == 0) {
+					// 3. FIXED: Avoid the "int == null" error by checking null first
+					// If the ID is null or 0, it's a new record. If it's > 0, it's an update.
+					if (pc.getPro_conc_id() == null || pc.getPro_conc_id() == 0) {
 						pc.setCreated_by(c.getCreatedBy() != null ? c.getCreatedBy() : 0);
 					}
 

@@ -112,8 +112,24 @@ public class ApplicationFastSaleController {
 	        
 	    } catch (Exception e) {
 	        // 500 - Any other unexpected error
+	        // Log the full exception for debugging
+	        System.out.println("===========================================");
+	        System.out.println("ERROR updating application sale for studAdmsId: " + studAdmsId);
+	        System.out.println("Exception Type: " + e.getClass().getName());
+	        System.out.println("Exception Message: " + e.getMessage());
+	        System.out.println("===========================================");
+	        e.printStackTrace();
+	        
+	        // Build detailed error message
+	        String errorDetails = String.format(
+	            "Error Type: %s | Message: %s | Cause: %s",
+	            e.getClass().getSimpleName(),
+	            e.getMessage() != null ? e.getMessage() : "No message",
+	            e.getCause() != null ? e.getCause().getMessage() : "No cause"
+	        );
+	        
 	        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-	                .body("An unexpected error occurred during update.");
+	                .body(errorDetails);
 	    }
 	}
 	
