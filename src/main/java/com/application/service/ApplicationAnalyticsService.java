@@ -402,16 +402,20 @@ public CombinedAnalyticsDTO getEmployeeAnalytics(Long empId) {
     System.out.println("Zone ID: " + zoneId);
     
     // Use UserAppSold for graph data - entity_id = 3 for issued (totalAppCount), entity_id = 4 for sold
+    // IMPORTANT: Ensure unique series - same series counted only once
     analytics.setGraphData(getGraphData(
         (yearId) -> {
-            // Get issued and sold from UserAppSold with entity_id = 3 (totalAppCount) for issued, entity_id = 4 for sold
-            Optional<GraphSoldSummaryDTO> userAppSoldData = userAppSoldRepository.getSalesSummaryByCampusListWithEntity4(campusIds, yearId);
-            if (userAppSoldData.isEmpty()) {
-                return Optional.of(new GraphSoldSummaryDTO(0L, 0L));
-            }
+            // Get issued and sold from UserAppSold with unique series (entity_id = 3 for issued, entity_id = 4 for sold)
+            // This ensures same series appears only once even if it exists in multiple entity_ids
+            List<Object[]> userAppSoldData = userAppSoldRepository.getSalesSummaryByCampusListWithEntity4Raw(campusIds, yearId);
+            long issuedFromUserAppSold = 0L;
+            long soldFromUserAppSold = 0L;
             
-            long issuedFromUserAppSold = userAppSoldData.get().totalApplications();
-            long soldFromUserAppSold = userAppSoldData.get().totalSold();
+            if (!userAppSoldData.isEmpty() && userAppSoldData.get(0) != null) {
+                Object[] row = userAppSoldData.get(0);
+                issuedFromUserAppSold = ((Number) row[0]).longValue();
+                soldFromUserAppSold = ((Number) row[1]).longValue();
+            }
             
             // Add distributions with issued_to_type_id = 4 to issued count
             Integer adminToCampusDist = distributionRepository.sumAdminToCampusDistributionByCampusIdsAndYear(campusIds, yearId)
@@ -1234,14 +1238,14 @@ MetricsAggregateDTO totalMetrics = curr; // instead of summing every year
                             rows = userAppSoldRepository.getYearWiseIssuedAndSoldByAmountAndZoneSeries(amount, empZoneId);
                         }
                     } else if (trimmedRole.equals("DGM")) {
-                        // DGM: Find distributions where Admin gave to Campus under that DGM
+                        // DGM: Use entity_id = 3 directly from UserAppSold (not series matching)
                         List<Integer> dgmCampusIds = dgmRepository.findCampusIdsByEmployeeId(employeeId);
                         if (dgmCampusIds == null || dgmCampusIds.isEmpty()) {
                             System.out.println("⚠️ DGM " + employeeId + " has no campuses, using default amount filter");
                             rows = userAppSoldRepository.getYearWiseIssuedAndSoldByAmount(amount);
                         } else {
-                            System.out.println("Using DGM logic: Admin->Campus (campuses: " + dgmCampusIds + ") -> UserAppSold totalAppCount");
-                            rows = userAppSoldRepository.getYearWiseIssuedAndSoldByAmountAndDgmCampusSeries(amount, dgmCampusIds);
+                            System.out.println("Using DGM logic: entity_id = 3 from UserAppSold (campuses: " + dgmCampusIds + ", amount: " + amount + ")");
+                            rows = userAppSoldRepository.getYearWiseIssuedAndSoldByCampusListAndAmountWithEntity4(dgmCampusIds, amount);
                         }
                     } else if (trimmedRole.equals("PRO") || trimmedRole.contains("PRINCIPAL") || trimmedRole.contains("VICE")) {
                         // PRO/PRINCIPAL/VICE PRINCIPAL: Find distributions to that campus

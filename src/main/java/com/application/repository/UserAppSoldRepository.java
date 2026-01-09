@@ -326,98 +326,139 @@ public interface UserAppSoldRepository extends JpaRepository<UserAppSold, Long> 
     // For cards graph: Find distributions by created_by, is_active=1, amount
     // Match series (appStartNo-appEndNo) with UserAppSold (rangeStartNo-rangeEndNo)
     // Sum totalAppCount from UserAppSold for matching series
-    @Query("""
+    // IMPORTANT: Ensure unique series - if same series appears in multiple entity_ids, count only once
+    // Use native query to handle subquery with proper aliases
+    @Query(value = """
             SELECT
-                u.acdcYearId,
-                COALESCE(SUM(u.totalAppCount), 0),
-                COALESCE(SUM(CASE WHEN u.entityId = 4 THEN u.sold ELSE 0 END), 0)
-            FROM UserAppSold u
-            INNER JOIN Distribution d ON (
-                d.created_by = :employeeId
-                AND d.isActive = 1
-                AND d.amount = :amount
-                AND u.rangeStartNo = d.appStartNo
-                AND u.rangeEndNo = d.appEndNo
-                AND u.acdcYearId = d.academicYear.acdcYearId
+                d.acdc_year_id,
+                COALESCE(SUM(series_max.total_app_count), 0),
+                COALESCE(SUM(series_max.sold_count), 0)
+            FROM sce_application.sce_app_distrubution d
+            INNER JOIN (
+                SELECT 
+                    u.acdc_year_id,
+                    u.range_start_no,
+                    u.range_end_no,
+                    MAX(u.total_app_count) as total_app_count,
+                    MAX(CASE WHEN u.entity_id = 4 THEN u.sold ELSE 0 END) as sold_count
+                FROM sce_application.sce_user_app_sold u
+                WHERE u.is_active = 1
+                  AND u.entity_id IN (2, 3, 4)
+                GROUP BY u.acdc_year_id, u.range_start_no, u.range_end_no
+            ) series_max ON (
+                series_max.range_start_no = d.app_start_no
+                AND series_max.range_end_no = d.app_end_no
+                AND series_max.acdc_year_id = d.acdc_year_id
             )
-            WHERE u.isActive = 1
-              AND u.entityId IN (2, 3, 4)
-            GROUP BY u.acdcYearId
-            ORDER BY u.acdcYearId
-        """)
+            WHERE d.created_by = :employeeId
+              AND d.is_active = 1
+              AND d.amount = :amount
+            GROUP BY d.acdc_year_id
+            ORDER BY d.acdc_year_id
+        """, nativeQuery = true)
     List<Object[]> getYearWiseIssuedAndSoldByAmountAndEmployeeSeries(@Param("amount") Float amount, @Param("employeeId") Integer employeeId);
    
     // ZONAL ACCOUNTANT: Get year-wise data for distributions where Admin gave to DGM or Campus in that zone
     // Match series from Distribution to UserAppSold
-    @Query("""
+    // IMPORTANT: Ensure unique series - if same series appears in multiple entity_ids, count only once
+    @Query(value = """
             SELECT
-                u.acdcYearId,
-                COALESCE(SUM(u.totalAppCount), 0),
-                COALESCE(SUM(CASE WHEN u.entityId = 4 THEN u.sold ELSE 0 END), 0)
-            FROM UserAppSold u
-            INNER JOIN Distribution d ON (
-                d.issuedByType.appIssuedId = 1
-                AND d.issuedToType.appIssuedId IN (3, 4)
-                AND d.isActive = 1
-                AND d.amount = :amount
-                AND d.zone.zoneId = :zoneId
-                AND u.rangeStartNo = d.appStartNo
-                AND u.rangeEndNo = d.appEndNo
-                AND u.acdcYearId = d.academicYear.acdcYearId
+                d.acdc_year_id,
+                COALESCE(SUM(series_max.total_app_count), 0),
+                COALESCE(SUM(series_max.sold_count), 0)
+            FROM sce_application.sce_app_distrubution d
+            INNER JOIN (
+                SELECT 
+                    u.acdc_year_id,
+                    u.range_start_no,
+                    u.range_end_no,
+                    MAX(u.total_app_count) as total_app_count,
+                    MAX(CASE WHEN u.entity_id = 4 THEN u.sold ELSE 0 END) as sold_count
+                FROM sce_application.sce_user_app_sold u
+                WHERE u.is_active = 1
+                  AND u.entity_id IN (2, 3, 4)
+                GROUP BY u.acdc_year_id, u.range_start_no, u.range_end_no
+            ) series_max ON (
+                series_max.range_start_no = d.app_start_no
+                AND series_max.range_end_no = d.app_end_no
+                AND series_max.acdc_year_id = d.acdc_year_id
             )
-            WHERE u.isActive = 1
-              AND u.entityId IN (2, 3, 4)
-            GROUP BY u.acdcYearId
-            ORDER BY u.acdcYearId
-        """)
+            WHERE d.issued_by_type_id = 1
+              AND d.issued_to_type_id IN (3, 4)
+              AND d.is_active = 1
+              AND d.amount = :amount
+              AND d.zone_id = :zoneId
+            GROUP BY d.acdc_year_id
+            ORDER BY d.acdc_year_id
+        """, nativeQuery = true)
     List<Object[]> getYearWiseIssuedAndSoldByAmountAndZoneSeries(@Param("amount") Float amount, @Param("zoneId") Integer zoneId);
    
     // DGM: Get year-wise data for distributions where Admin gave to Campus under that DGM
     // Match series from Distribution to UserAppSold
-    @Query("""
+    // IMPORTANT: Ensure unique series - if same series appears in multiple entity_ids, count only once
+    @Query(value = """
             SELECT
-                u.acdcYearId,
-                COALESCE(SUM(u.totalAppCount), 0),
-                COALESCE(SUM(CASE WHEN u.entityId = 4 THEN u.sold ELSE 0 END), 0)
-            FROM UserAppSold u
-            INNER JOIN Distribution d ON (
-                d.issuedByType.appIssuedId = 1
-                AND d.issuedToType.appIssuedId = 4
-                AND d.isActive = 1
-                AND d.amount = :amount
-                AND d.campus.campusId IN :campusIds
-                AND u.rangeStartNo = d.appStartNo
-                AND u.rangeEndNo = d.appEndNo
-                AND u.acdcYearId = d.academicYear.acdcYearId
+                d.acdc_year_id,
+                COALESCE(SUM(series_max.total_app_count), 0),
+                COALESCE(SUM(series_max.sold_count), 0)
+            FROM sce_application.sce_app_distrubution d
+            INNER JOIN (
+                SELECT 
+                    u.acdc_year_id,
+                    u.range_start_no,
+                    u.range_end_no,
+                    MAX(u.total_app_count) as total_app_count,
+                    MAX(CASE WHEN u.entity_id = 4 THEN u.sold ELSE 0 END) as sold_count
+                FROM sce_application.sce_user_app_sold u
+                WHERE u.is_active = 1
+                  AND u.entity_id IN (2, 3, 4)
+                GROUP BY u.acdc_year_id, u.range_start_no, u.range_end_no
+            ) series_max ON (
+                series_max.range_start_no = d.app_start_no
+                AND series_max.range_end_no = d.app_end_no
+                AND series_max.acdc_year_id = d.acdc_year_id
             )
-            WHERE u.isActive = 1
-              AND u.entityId IN (2, 3, 4)
-            GROUP BY u.acdcYearId
-            ORDER BY u.acdcYearId
-        """)
+            WHERE d.issued_by_type_id = 1
+              AND d.issued_to_type_id = 4
+              AND d.is_active = 1
+              AND d.amount = :amount
+              AND d.cmps_id IN :campusIds
+            GROUP BY d.acdc_year_id
+            ORDER BY d.acdc_year_id
+        """, nativeQuery = true)
     List<Object[]> getYearWiseIssuedAndSoldByAmountAndDgmCampusSeries(@Param("amount") Float amount, @Param("campusIds") List<Integer> campusIds);
    
     // PRO/PRINCIPAL/VICE PRINCIPAL: Get year-wise data for distributions to that campus
     // Match series from Distribution to UserAppSold
-    @Query("""
+    // IMPORTANT: Ensure unique series - if same series appears in multiple entity_ids, count only once
+    @Query(value = """
             SELECT
-                u.acdcYearId,
-                COALESCE(SUM(u.totalAppCount), 0),
-                COALESCE(SUM(CASE WHEN u.entityId = 4 THEN u.sold ELSE 0 END), 0)
-            FROM UserAppSold u
-            INNER JOIN Distribution d ON (
-                d.isActive = 1
-                AND d.amount = :amount
-                AND d.campus.campusId = :campusId
-                AND u.rangeStartNo = d.appStartNo
-                AND u.rangeEndNo = d.appEndNo
-                AND u.acdcYearId = d.academicYear.acdcYearId
+                d.acdc_year_id,
+                COALESCE(SUM(series_max.total_app_count), 0),
+                COALESCE(SUM(series_max.sold_count), 0)
+            FROM sce_application.sce_app_distrubution d
+            INNER JOIN (
+                SELECT 
+                    u.acdc_year_id,
+                    u.range_start_no,
+                    u.range_end_no,
+                    MAX(u.total_app_count) as total_app_count,
+                    MAX(CASE WHEN u.entity_id = 4 THEN u.sold ELSE 0 END) as sold_count
+                FROM sce_application.sce_user_app_sold u
+                WHERE u.is_active = 1
+                  AND u.entity_id IN (2, 3, 4)
+                GROUP BY u.acdc_year_id, u.range_start_no, u.range_end_no
+            ) series_max ON (
+                series_max.range_start_no = d.app_start_no
+                AND series_max.range_end_no = d.app_end_no
+                AND series_max.acdc_year_id = d.acdc_year_id
             )
-            WHERE u.isActive = 1
-              AND u.entityId IN (2, 3, 4)
-            GROUP BY u.acdcYearId
-            ORDER BY u.acdcYearId
-        """)
+            WHERE d.is_active = 1
+              AND d.amount = :amount
+              AND d.cmps_id = :campusId
+            GROUP BY d.acdc_year_id
+            ORDER BY d.acdc_year_id
+        """, nativeQuery = true)
     List<Object[]> getYearWiseIssuedAndSoldByAmountAndCampusSeries(@Param("amount") Float amount, @Param("campusId") Integer campusId);
    
     @Query("""
@@ -608,15 +649,28 @@ public interface UserAppSoldRepository extends JpaRepository<UserAppSold, Long> 
         """)
     List<Object[]> getYearWiseIssuedAndSoldByZoneCampusListAndAmountWithEntity4(@Param("zoneId") Integer zoneId, @Param("campusIds") List<Integer> campusIds, @Param("amount") Float amount);
     
-    @Query("SELECT NEW com.application.dto.GraphSoldSummaryDTO(" +
-           "COALESCE(SUM(CASE WHEN u.entityId = 3 THEN u.totalAppCount ELSE 0 END), 0), " +
-           "COALESCE(SUM(CASE WHEN u.entityId = 4 THEN u.sold ELSE 0 END), 0)) " +
-           "FROM UserAppSold u " +
-           "WHERE u.isActive = 1 " +
-           "AND u.entityId IN (3, 4) " +
-           "AND u.campus.campusId IN :campusIds " +
-           "AND u.acdcYearId = :acdcYearId")
-    Optional<GraphSoldSummaryDTO> getSalesSummaryByCampusListWithEntity4(
+    // IMPORTANT: Ensure unique series - if same series appears in multiple entity_ids, count only once
+    // For each unique series (rangeStartNo, rangeEndNo), take MAX totalAppCount to avoid double-counting
+    // Returns: [totalAppCount, soldCount] as Object array
+    @Query(value = """
+            SELECT 
+                COALESCE(SUM(series_max.total_app_count), 0),
+                COALESCE(SUM(series_max.sold_count), 0)
+            FROM (
+                SELECT 
+                    u.range_start_no,
+                    u.range_end_no,
+                    MAX(CASE WHEN u.entity_id = 3 THEN u.total_app_count ELSE 0 END) as total_app_count,
+                    MAX(CASE WHEN u.entity_id = 4 THEN u.sold ELSE 0 END) as sold_count
+                FROM sce_application.sce_user_app_sold u
+                WHERE u.is_active = 1
+                  AND u.entity_id IN (3, 4)
+                  AND u.cmps_id IN :campusIds
+                  AND u.acdc_year_id = :acdcYearId
+                GROUP BY u.range_start_no, u.range_end_no
+            ) series_max
+        """, nativeQuery = true)
+    List<Object[]> getSalesSummaryByCampusListWithEntity4Raw(
             @Param("campusIds") List<Integer> campusIds,
             @Param("acdcYearId") Integer acdcYearId
     );
