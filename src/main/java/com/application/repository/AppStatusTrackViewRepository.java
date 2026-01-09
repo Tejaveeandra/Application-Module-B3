@@ -69,4 +69,46 @@ public interface AppStatusTrackViewRepository extends JpaRepository<AppStatusTra
 
       @Query("SELECT a FROM AppStatusTrackView a WHERE a.pro_emp_id = :proEmpId")
       List<AppStatusTrackView> findByPro_emp_id(@Param("proEmpId") int proEmpId);
+      
+      // Get year-wise sold, fast sale, and confirmed for admin distributions with amount filter
+      // Sold = "not confirmed" or "fast sale" (with variations)
+      // Fast Sale = "fast sale" (with variations)
+      // Confirmed = "confirmed"
+      // Uses DISTINCT on (year_id, app_no) to avoid double counting when same application appears in multiple distributions
+      @Query(value = """
+            SELECT
+                distinct_apps.acdc_year_id,
+                COALESCE(SUM(CASE 
+                    WHEN LOWER(TRIM(distinct_apps.status)) = 'not confirmed' 
+                     OR LOWER(REPLACE(REPLACE(REPLACE(TRIM(distinct_apps.status), ' ', ''), '_', ''), '-', '')) = 'fastsale'
+                     OR LOWER(TRIM(distinct_apps.status)) = 'fast sale'
+                    THEN 1 ELSE 0 END), 0) as sold_count,
+                COALESCE(SUM(CASE 
+                    WHEN LOWER(REPLACE(REPLACE(REPLACE(TRIM(distinct_apps.status), ' ', ''), '_', ''), '-', '')) = 'fastsale'
+                     OR LOWER(TRIM(distinct_apps.status)) = 'fast sale'
+                    THEN 1 ELSE 0 END), 0) as fast_sale_count,
+                COALESCE(SUM(CASE 
+                    WHEN LOWER(TRIM(distinct_apps.status)) = 'confirmed'
+                    THEN 1 ELSE 0 END), 0) as confirmed_count
+            FROM (
+                SELECT DISTINCT
+                    d.acdc_year_id,
+                    a.app_no,
+                    a.status
+                FROM sce_application.sce_app_distrubution d
+                INNER JOIN sce_application.sce_app_status_track a ON (
+                    a.app_no >= d.app_start_no
+                    AND a.app_no <= d.app_end_no
+                )
+                WHERE d.created_by = :employeeId
+                  AND d.is_active = 1
+                  AND d.amount = :amount
+            ) distinct_apps
+            GROUP BY distinct_apps.acdc_year_id
+            ORDER BY distinct_apps.acdc_year_id
+            """, nativeQuery = true)
+      List<Object[]> getYearWiseSoldFastSaleConfirmedByAdminAndAmount(
+              @Param("employeeId") Integer employeeId,
+              @Param("amount") Float amount
+      );
 }

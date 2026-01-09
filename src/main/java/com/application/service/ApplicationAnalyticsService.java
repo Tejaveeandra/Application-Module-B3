@@ -30,6 +30,7 @@ import com.application.repository.SCEmployeeRepository;
 import com.application.repository.UserAppSoldRepository;
 import com.application.repository.ZonalAccountantRepository;
 import com.application.repository.ZoneRepository;
+import com.application.repository.AppStatusTrackViewRepository;
 import com.application.entity.Zone;
 import com.application.dto.GenericDropdownDTO_Dgm;
 import com.application.dto.GenericDropdownDTO;
@@ -53,6 +54,8 @@ private CampusRepository campusRepository;
     private DistributionRepository distributionRepository;
 @Autowired
 private ZoneRepository zoneRepository;
+    @Autowired
+    private AppStatusTrackViewRepository appStatusTrackViewRepository;
 public CombinedAnalyticsDTO getRollupAnalytics(Integer empId) {
 System.out.println("========================================");
 System.out.println("DEBUG: getRollupAnalytics called for empId: " + empId);
@@ -1223,9 +1226,48 @@ MetricsAggregateDTO totalMetrics = curr; // instead of summing every year
                     System.out.println("Filter: Amount + Employee Series Match (amt=" + amount + ", empId=" + employeeId + ", role=" + trimmedRole + ")");
                     
                     if (trimmedRole.equals("ADMIN")) {
-                        // ADMIN: Find distributions created by this admin, match series
-                        System.out.println("Using ADMIN logic: Distribution created_by -> UserAppSold totalAppCount");
-                        rows = userAppSoldRepository.getYearWiseIssuedAndSoldByAmountAndEmployeeSeries(amount, employeeId);
+                        // ADMIN: Get issued from UserAppSold, sold/fast sale/confirmed from AppStatusTrackView
+                        System.out.println("Using ADMIN logic: Issued from UserAppSold, Sold/FastSale/Confirmed from AppStatusTrackView");
+                        
+                        // Get issued from UserAppSold (via Distribution series matching)
+                        List<Object[]> issuedRows = userAppSoldRepository.getYearWiseIssuedAndSoldByAmountAndEmployeeSeries(amount, employeeId);
+                        
+                        // Get sold, fast sale, and confirmed from AppStatusTrackView
+                        List<Object[]> statusRows = appStatusTrackViewRepository.getYearWiseSoldFastSaleConfirmedByAdminAndAmount(employeeId, amount);
+                        
+                        // Merge: issued from UserAppSold, sold = sold + fast sale + confirmed from AppStatusTrackView
+                        java.util.Map<Integer, long[]> mergedMap = new java.util.HashMap<>();
+                        
+                        // Add issued data
+                        for (Object[] row : issuedRows) {
+                            Integer yearId = (Integer) row[0];
+                            Long issued = row[1] != null ? ((Number) row[1]).longValue() : 0L;
+                            mergedMap.put(yearId, new long[]{issued, 0L}); // sold will be updated below
+                        }
+                        
+                        // Add sold/confirmed data
+                        // Note: sold_count already includes "not confirmed" + "fast sale"
+                        // fast_sale_count is a subset of sold_count, so we don't add it separately
+                        // Total sold = sold_count (which includes fast sale) + confirmed_count
+                        for (Object[] row : statusRows) {
+                            Integer yearId = (Integer) row[0];
+                            Long sold = row[1] != null ? ((Number) row[1]).longValue() : 0L; // Already includes "not confirmed" + "fast sale"
+                            Long fastSale = row[2] != null ? ((Number) row[2]).longValue() : 0L; // Just for logging, not added
+                            Long confirmed = row[3] != null ? ((Number) row[3]).longValue() : 0L;
+                            long totalSold = sold + confirmed; // sold already includes fast sale, so don't add fastSale again
+                            
+                            long[] data = mergedMap.getOrDefault(yearId, new long[]{0L, 0L});
+                            data[1] = totalSold; // Update sold count
+                            mergedMap.put(yearId, data);
+                            
+                            System.out.println("Admin Year " + yearId + ": Sold=" + sold + " (includes fast sale), FastSale=" + fastSale + " (subset), Confirmed=" + confirmed + ", TotalSold=" + totalSold);
+                        }
+                        
+                        // Convert merged map back to rows format [yearId, issued, sold]
+                        rows = new java.util.ArrayList<>();
+                        for (java.util.Map.Entry<Integer, long[]> entry : mergedMap.entrySet()) {
+                            rows.add(new Object[]{entry.getKey(), entry.getValue()[0], entry.getValue()[1]});
+                        }
                     } else if (trimmedRole.equals("ZONAL ACCOUNTANT")) {
                         // ZONAL ACCOUNTANT: Find distributions where Admin gave to DGM or Campus in that zone
                         List<ZonalAccountant> zonalRecords = zonalAccountantRepository.findActiveByEmployee(employeeId);
@@ -1248,14 +1290,14 @@ MetricsAggregateDTO totalMetrics = curr; // instead of summing every year
                             rows = userAppSoldRepository.getYearWiseIssuedAndSoldByCampusListAndAmountWithEntity4(dgmCampusIds, amount);
                         }
                     } else if (trimmedRole.equals("PRO") || trimmedRole.contains("PRINCIPAL") || trimmedRole.contains("VICE")) {
-                        // PRO/PRINCIPAL/VICE PRINCIPAL: Find distributions to that campus
+                        // PRO/PRINCIPAL/VICE PRINCIPAL: Use entity_id = 4 directly from UserAppSold (not series matching)
                         int empCampusId = employee.getEmpCampusId();
                         if (empCampusId <= 0) {
                             System.out.println("⚠️ " + trimmedRole + " " + employeeId + " has invalid campusId, using default amount filter");
                             rows = userAppSoldRepository.getYearWiseIssuedAndSoldByAmount(amount);
                         } else {
-                            System.out.println("Using " + trimmedRole + " logic: Distributions to campus " + empCampusId + " -> UserAppSold totalAppCount");
-                            rows = userAppSoldRepository.getYearWiseIssuedAndSoldByAmountAndCampusSeries(amount, empCampusId);
+                            System.out.println("Using " + trimmedRole + " logic: entity_id = 4 from UserAppSold (campusId: " + empCampusId + ", amount: " + amount + ")");
+                            rows = userAppSoldRepository.getYearWiseIssuedAndSoldByCampusAndAmount(empCampusId, amount);
                         }
                     } else {
                         // Unknown role, use default
