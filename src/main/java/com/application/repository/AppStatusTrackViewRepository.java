@@ -15,7 +15,7 @@ import com.application.entity.AppStatusTrackView;
 public interface AppStatusTrackViewRepository extends JpaRepository<AppStatusTrackView, Integer>{
 	
 	Optional<AppStatusTrackView> findByNum(Long num);
-	@Query("SELECT a FROM AppStatusTrackView a WHERE a.cmps_id = :cmpsId")
+	@Query("SELECT a FROM AppStatusTrackView a WHERE a.cmps_id = :cmpsId ORDER BY a.date DESC")
     List<AppStatusTrackView> findByCmps_id(@Param("cmpsId") int cmpsId);
 	
 	@Query("SELECT a FROM AppStatusTrackView a WHERE a.cmps_id = " +
@@ -56,15 +56,15 @@ public interface AppStatusTrackViewRepository extends JpaRepository<AppStatusTra
      Long countByApplicationNumberRangeAndStatus(@Param("startNo") Integer startNo, @Param("endNo") Integer endNo, @Param("status") String status);
      
      @Query("SELECT a FROM AppStatusTrackView a JOIN SCEmployeeEntity e ON a.pro_emp_id = e.empId " +
-             "WHERE LOWER(e.category) = LOWER(:category)")
+             "WHERE LOWER(e.category) = LOWER(:category) ORDER BY a.date DESC")
       List<AppStatusTrackView> findAllByCategory(@Param("category") String category);
 
       // 2. For ZONAL ACCOUNTANT
-      @Query("SELECT a FROM AppStatusTrackView a WHERE a.zone_id = :zoneId")
+      @Query("SELECT a FROM AppStatusTrackView a WHERE a.zone_id = :zoneId ORDER BY a.date DESC")
       List<AppStatusTrackView> findByZone_id(@Param("zoneId") int zoneId);
 
       // 3. For DGM (Using dgm_emp_id column in the View)
-      @Query("SELECT a FROM AppStatusTrackView a WHERE a.dgm_emp_id = :dgmEmpId")
+      @Query("SELECT a FROM AppStatusTrackView a WHERE a.dgm_emp_id = :dgmEmpId ORDER BY a.date DESC")
       List<AppStatusTrackView> findByDgm_emp_id(@Param("dgmEmpId") int dgmEmpId);
 
       @Query("SELECT a FROM AppStatusTrackView a WHERE a.pro_emp_id = :proEmpId")
