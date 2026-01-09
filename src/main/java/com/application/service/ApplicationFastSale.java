@@ -599,7 +599,8 @@ public class ApplicationFastSale {
 		if (formData.getAppSaleDate() != null) {
 			LocalDateTime saleDateTime = formData.getAppSaleDate().toInstant()
 					.atZone(java.time.ZoneId.systemDefault())
-					.toLocalDateTime();
+					.toLocalDate()
+					.atTime(java.time.LocalTime.now());
 			academicDetails.setApp_sale_date(saleDateTime);
 		} else {
 			academicDetails.setApp_sale_date(LocalDateTime.now());
@@ -1332,7 +1333,9 @@ public class ApplicationFastSale {
 			// Convert Date to LocalDateTime for app_sale_date
 			if (formData.getAppSaleDate() != null) {
 				LocalDateTime saleDateTime = formData.getAppSaleDate().toInstant()
-						.atZone(java.time.ZoneId.systemDefault()).toLocalDateTime();
+						.atZone(java.time.ZoneId.systemDefault())
+						.toLocalDate()
+						.atTime(java.time.LocalTime.now());
 				academicDetails.setApp_sale_date(saleDateTime);
 			}
 		}
