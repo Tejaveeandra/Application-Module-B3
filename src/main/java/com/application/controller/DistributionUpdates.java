@@ -7,7 +7,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-
+ 
 import com.application.dto.DgmToCampusFormDTO;
 import com.application.dto.DistributionRequestDTO;
 import com.application.dto.FormSubmissionDTO;
@@ -15,8 +15,8 @@ import com.application.repository.BalanceTrackRepository;
 import com.application.service.CampusService;
 import com.application.service.DgmService;
 import com.application.service.ZoneService;
-
-
+ 
+ 
 @RestController
 @RequestMapping("/distribution/updates")
 //@CrossOrigin(origins = "*")
@@ -27,7 +27,7 @@ public class DistributionUpdates {
 	
 	@Autowired
 	private DgmService applicationService;
-	 
+	
 	@Autowired
 	private CampusService dgmService;
 	
@@ -51,12 +51,12 @@ public class DistributionUpdates {
          }
      }
     
-     @PutMapping("/update-campus/{Id}")//used
+     @PutMapping("/update-campus/{id}")//used
      public ResponseEntity<Void> updateDgmToCampusForm(
-             @PathVariable int distributionId,
+             @PathVariable int id,
              @RequestBody DgmToCampusFormDTO formDto) {
          try {
-             dgmService.updateDgmToCampusForm(distributionId, formDto);
+             dgmService.updateDgmToCampusForm(id, formDto);
              return new ResponseEntity<>(HttpStatus.OK);
          } catch (RuntimeException e) {
              return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
