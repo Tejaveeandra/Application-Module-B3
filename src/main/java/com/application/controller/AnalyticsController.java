@@ -219,5 +219,17 @@ public class AnalyticsController {
             return ResponseEntity.internalServerError().build();
         }
     }
+    
+    @GetMapping("/admin-app-amounts")
+    public ResponseEntity<List<Double>> getDistinctAppAmounts() {
+        try {
+            List<Double> amounts = analyticsService.getDistinctAppAmounts();
+            return ResponseEntity.ok(amounts);
+        } catch (Exception e) {
+            System.err.println("Error in getDistinctAppAmounts: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.internalServerError().build();
+        }
+    }
 }
  

@@ -36,6 +36,7 @@ import com.application.dto.GenericDropdownDTO_Dgm;
 import com.application.dto.GenericDropdownDTO;
 import com.application.dto.AcademicYearDTO;
 import com.application.dto.AcademicYearInfoDTO;
+import com.application.repository.AdminAppRepository;
 @Service
 public class ApplicationAnalyticsService {
     @Autowired
@@ -58,6 +59,8 @@ private CampusRepository campusRepository;
 private ZoneRepository zoneRepository;
     @Autowired
     private AppStatusTrackViewRepository appStatusTrackViewRepository;
+    @Autowired
+    private AdminAppRepository adminAppRepository;
 public CombinedAnalyticsDTO getRollupAnalytics(Integer empId) {
 System.out.println("========================================");
 System.out.println("DEBUG: getRollupAnalytics called for empId: " + empId);
@@ -1764,4 +1767,23 @@ public AcademicYearInfoDTO getAcademicYearInfo() {
     
     return new AcademicYearInfoDTO(currentYear, nextYear, previousYear);
 }
+
+    /**
+     * Get distinct app_amount values from AdminApp table
+     * @return List of distinct app_amount values (sorted in ascending order)
+     */
+    public List<Double> getDistinctAppAmounts() {
+        try {
+            List<Double> distinctAmounts = adminAppRepository.findDistinctAppAmounts();
+            System.out.println("Distinct App Amounts Found: " + distinctAmounts.size());
+            if (!distinctAmounts.isEmpty()) {
+                System.out.println("Amounts: " + distinctAmounts);
+            }
+            return distinctAmounts;
+        } catch (Exception e) {
+            System.err.println("Error in getDistinctAppAmounts: " + e.getMessage());
+            e.printStackTrace();
+            return new ArrayList<>();
+        }
+    }
 }

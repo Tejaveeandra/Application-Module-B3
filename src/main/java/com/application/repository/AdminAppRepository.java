@@ -154,6 +154,15 @@ public interface AdminAppRepository extends JpaRepository<AdminApp, Integer> {
              WHERE is_active = 1
          """, nativeQuery = true)
      Integer findLatestYearIdFromAdminApp();
+     
+     // Get distinct app_amount values from AdminApp table
+     @Query(value = """
+             SELECT DISTINCT app_amount
+             FROM sce_application.sce_admin_app
+             WHERE app_amount IS NOT NULL
+             ORDER BY app_amount ASC
+         """, nativeQuery = true)
+     List<Double> findDistinctAppAmounts();
 }
  
  

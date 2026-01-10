@@ -1,6 +1,5 @@
 package com.application.dto;
  
-import java.time.LocalDate;
 import java.time.LocalDateTime;
  
 import lombok.AllArgsConstructor;
@@ -33,6 +32,7 @@ public class DistributionGetTableDTO {
     private int cmps_id;
     private LocalDateTime issueDate;
     private int acdc_year_id;
+    private String academicYear;
     private int campaignAreaId;
     private Long mobileNmuber;
  

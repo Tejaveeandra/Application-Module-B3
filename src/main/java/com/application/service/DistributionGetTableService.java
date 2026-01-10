@@ -120,6 +120,7 @@ public class DistributionGetTableService {
             if (d.getAcademicYear() != null) {
                 acdcYearId = d.getAcademicYear().getAcdcYearId();
                 dto.setAcdc_year_id(acdcYearId);
+                dto.setAcademicYear(d.getAcademicYear().getAcademicYear());
             }
             
             // 4. Master Range Enrichment
