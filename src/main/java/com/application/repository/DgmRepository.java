@@ -31,11 +31,13 @@ public interface DgmRepository extends JpaRepository<Dgm, Integer> {
 	List<GenericDropdownDTO> findAllDgmEmployees();
 
 	@Query("SELECT DISTINCT new com.application.dto.GenericDropdownDTO(e.emp_id, CONCAT(e.first_name, ' ', e.last_name)) "
-			+ "FROM Dgm d " + "JOIN d.employee e " + "WHERE d.zone.zoneId = :zoneId " + "AND e.isActive = 1 " + "AND d.isActive = 1")
+			+ "FROM Dgm d " + "JOIN d.employee e " + "WHERE d.zone.zoneId = :zoneId " + "AND e.isActive = 1 "
+			+ "AND d.isActive = 1")
 	List<GenericDropdownDTO> findDistinctActiveEmployeesByZoneId(@Param("zoneId") int zoneId);
-	
+
 	@Query("SELECT DISTINCT new com.application.dto.GenericDropdownDTO(e.emp_id, CONCAT(e.first_name, ' ', e.last_name)) "
-			+ "FROM Dgm d " + "JOIN d.employee e " + "WHERE d.campus.campusId = :campusId " + "AND e.isActive = 1 " + "AND d.isActive = 1")
+			+ "FROM Dgm d " + "JOIN d.employee e " + "WHERE d.campus.campusId = :campusId " + "AND e.isActive = 1 "
+			+ "AND d.isActive = 1")
 	List<GenericDropdownDTO> findDistinctActiveEmployeesByCampusId(@Param("campusId") int campusId);
 
 	@Query("SELECT DISTINCT new com.application.dto.GenericDropdownDTO(c.campusId, c.campusName) " + "FROM Dgm d "
@@ -48,9 +50,9 @@ public interface DgmRepository extends JpaRepository<Dgm, Integer> {
 	@Query("SELECT DISTINCT d.campus.campusId FROM Dgm d WHERE d.zone.zoneId IN :zoneIds")
 	List<Integer> findCampusIdsByZoneIds(List<Integer> zoneIds);
 
-//	@Query("SELECT d.campus.id FROM Dgm d WHERE d.employee.id = :empId")
-//	List<Integer> findCampusIdsByEmployeeId(@Param("empId") Integer empId);
-	
+	// @Query("SELECT d.campus.id FROM Dgm d WHERE d.employee.id = :empId")
+	// List<Integer> findCampusIdsByEmployeeId(@Param("empId") Integer empId);
+
 	@Query("SELECT d.campus.id FROM Dgm d WHERE d.employee.id = :empId AND d.isActive = 1")
 	List<Integer> findCampusIdsByEmployeeId(@Param("empId") Integer empId);
 
@@ -62,28 +64,31 @@ public interface DgmRepository extends JpaRepository<Dgm, Integer> {
 
 	@Query("SELECT d.zone.zoneId FROM Dgm d WHERE d.employee.emp_id = :empId")
 	Optional<Integer> findZoneIdByEmpId(@Param("empId") int empId);
-	
+
 	@Query("SELECT d.campus FROM Dgm d WHERE d.zone.zoneId = :zoneId AND d.isActive = 1 AND d.campus.isActive = 1")
 	List<Campus> findCampusesByZone(@Param("zoneId") Integer zoneId);
-	
+
 	@Query("SELECT d FROM Dgm d WHERE d.employee.emp_id = :empId AND d.isActive = 1")
-    Optional<Dgm> lookupByEmpId(@Param("empId") Integer empId);
-	
+	Optional<Dgm> lookupByEmpId(@Param("empId") Integer empId);
+
 	List<Dgm> findByZoneZoneIdAndIsActive(Integer zoneId, int isActive);
 
-	 @Query("SELECT d FROM Dgm d WHERE d.employee.emp_id = :empId AND d.isActive = 1")
-	    Optional<Dgm> findActiveByEmpId(@Param("empId") Integer empId);
-	 
-	 @Query("SELECT e.emp_id, CONCAT(e.first_name, ' ', e.last_name), d.campus.campusId " + 
-		       "FROM Dgm d " + 
-		       "JOIN d.employee e " + 
-		       "WHERE e.isActive = 1 AND d.isActive = 1") // Added d.isActive check
-		List<Object[]> findAllDgmEmployeesWithCampusId();
-		
-		@Query("SELECT d FROM Dgm d WHERE d.employee.id = :empId AND d.isActive = 1")
-		List<Dgm> findAllByEmployeeId(@Param("empId") Integer empId);
-		
-		@Query("SELECT d FROM Dgm d WHERE d.employee.emp_id = :empId AND d.isActive = 1")
-		List<Dgm> findDgmWithCampusesByEmployeeId(@Param("empId") Integer empId);
+	@Query("SELECT d FROM Dgm d WHERE d.employee.emp_id = :empId AND d.isActive = 1")
+	Optional<Dgm> findActiveByEmpId(@Param("empId") Integer empId);
+
+	@Query("SELECT e.emp_id, CONCAT(e.first_name, ' ', e.last_name), d.campus.campusId " +
+			"FROM Dgm d " +
+			"JOIN d.employee e " +
+			"WHERE e.isActive = 1 AND d.isActive = 1") // Added d.isActive check
+	List<Object[]> findAllDgmEmployeesWithCampusId();
+
+	@Query("SELECT d FROM Dgm d WHERE d.employee.id = :empId AND d.isActive = 1")
+	List<Dgm> findAllByEmployeeId(@Param("empId") Integer empId);
+
+	@Query("SELECT d FROM Dgm d WHERE d.employee.emp_id = :empId AND d.isActive = 1")
+	List<Dgm> findDgmWithCampusesByEmployeeId(@Param("empId") Integer empId);
+
+	@Query("SELECT d FROM Dgm d WHERE d.zone.zoneId IN :zoneIds AND d.isActive = 1 AND d.employee.isActive = 1")
+	List<Dgm> findActiveDgmByZoneIds(@Param("zoneIds") List<Integer> zoneIds);
 
 }
