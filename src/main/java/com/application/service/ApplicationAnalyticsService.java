@@ -1684,18 +1684,30 @@ return true;
 }
 
 /**
- * Get Current, Next, and Previous Academic Years
+ * Get Current, Next, and Previous Two Academic Years
  * Returns academic year ID and academic year string for each
- * Current year is determined based on the current calendar year
+ * Current year is determined by finding academic year where year field = current calendar year - 1
+ * (e.g., if calendar year is 2026, current academic year is "2025-26" where year=2025)
+ * Then uses that academic year's year field to calculate next and previous years
+ * All queries filter by is_active = 1
  * 
- * @return AcademicYearInfoDTO containing current, next, and previous academic years
+ * @return AcademicYearInfoDTO containing current, next, and previous two academic years
  */
 public AcademicYearInfoDTO getAcademicYearInfo() {
-    // Get current calendar year (e.g., 2025)
+    // Get current calendar year (e.g., 2026)
     int currentCalendarYear = java.time.Year.now().getValue();
+    // Current academic year is typically the one that started in the previous calendar year
+    // (e.g., if calendar year is 2026, current academic year is "2025-26" where year=2025)
+    int currentAcademicYearValue = currentCalendarYear - 1;
+    System.out.println("========================================");
+    System.out.println("ACADEMIC YEAR INFO CALCULATION");
+    System.out.println("Current Calendar Year: " + currentCalendarYear);
+    System.out.println("Finding academic year where year field = " + currentAcademicYearValue + " (calendar year - 1)");
+    System.out.println("========================================");
     
-    // Find academic year where year field matches current calendar year
-    Optional<AcademicYear> currentYearEntityOpt = academicYearRepository.findByYearAndIsActive(currentCalendarYear, 1);
+    // Find academic year where year field = current calendar year - 1 (filtered by is_active = 1)
+    // This gives us the current academic year (e.g., if calendar is 2026, year=2025 → "2025-26")
+    Optional<AcademicYear> currentYearEntityOpt = academicYearRepository.findByYearAndIsActive(currentAcademicYearValue, 1);
     
     AcademicYearDTO currentYear;
     AcademicYearDTO nextYear;
@@ -1707,71 +1719,48 @@ public AcademicYearInfoDTO getAcademicYearInfo() {
             currentYearEntity.getAcdcYearId(),
             currentYearEntity.getAcademicYear()
         );
+        System.out.println("Current Academic Year Found: acdcYearId=" + currentYearEntity.getAcdcYearId() + 
+                         ", year=" + currentYearEntity.getYear() + 
+                         ", academicYear=" + currentYearEntity.getAcademicYear());
         
-        // Next year: year + 1
-        Integer nextCalendarYear = currentCalendarYear + 1;
-        Optional<AcademicYear> nextYearEntityOpt = academicYearRepository.findByYearAndIsActive(nextCalendarYear, 1);
+        // Next year: current academic year's year value + 1 (filtered by is_active = 1)
+        Integer nextYearValue = currentYearEntity.getYear() + 1;
+        Optional<AcademicYear> nextYearEntityOpt = academicYearRepository.findByYearAndIsActive(nextYearValue, 1);
         nextYear = nextYearEntityOpt.isPresent()
             ? new AcademicYearDTO(nextYearEntityOpt.get().getAcdcYearId(), nextYearEntityOpt.get().getAcademicYear())
             : new AcademicYearDTO(null, null);
+        if (nextYearEntityOpt.isPresent()) {
+            System.out.println("Next Year Found: acdcYearId=" + nextYearEntityOpt.get().getAcdcYearId() + 
+                             ", year=" + nextYearEntityOpt.get().getYear() + 
+                             ", academicYear=" + nextYearEntityOpt.get().getAcademicYear());
+        } else {
+            System.out.println("Next Year NOT Found for year=" + nextYearValue);
+        }
         
-        // Previous year: year - 1
-        Integer previousCalendarYear = currentCalendarYear - 1;
-        Optional<AcademicYear> previousYearEntityOpt = academicYearRepository.findByYearAndIsActive(previousCalendarYear, 1);
+        // Previous year: current academic year's year value - 1 (filtered by is_active = 1)
+        Integer previousYearValue = currentYearEntity.getYear() - 1;
+        Optional<AcademicYear> previousYearEntityOpt = academicYearRepository.findByYearAndIsActive(previousYearValue, 1);
         previousYear = previousYearEntityOpt.isPresent()
             ? new AcademicYearDTO(previousYearEntityOpt.get().getAcdcYearId(), previousYearEntityOpt.get().getAcademicYear())
             : new AcademicYearDTO(null, null);
-    } else {
-        // If current year not found, try to find the closest year
-        // Get all active years ordered by year field descending (filtered by is_active = 1)
-        List<AcademicYear> allActiveYears = academicYearRepository.findAllActiveOrderedByYearDesc();
-        
-        if (allActiveYears == null || allActiveYears.isEmpty()) {
-            // Return empty DTOs if no active years found
-            return new AcademicYearInfoDTO(
-                new AcademicYearDTO(null, null),
-                new AcademicYearDTO(null, null),
-                new AcademicYearDTO(null, null)
-            );
-        }
-        
-        // Find the academic year with year field closest to current calendar year
-        AcademicYear closestYear = null;
-        int minDifference = Integer.MAX_VALUE;
-        
-        for (AcademicYear year : allActiveYears) {
-            int difference = Math.abs(year.getYear() - currentCalendarYear);
-            if (difference < minDifference) {
-                minDifference = difference;
-                closestYear = year;
-            }
-        }
-        
-        if (closestYear != null) {
-            currentYear = new AcademicYearDTO(closestYear.getAcdcYearId(), closestYear.getAcademicYear());
-            
-            // Next year: closest year + 1
-            Integer nextCalendarYear = closestYear.getYear() + 1;
-            Optional<AcademicYear> nextYearEntityOpt = academicYearRepository.findByYearAndIsActive(nextCalendarYear, 1);
-            nextYear = nextYearEntityOpt.isPresent()
-                ? new AcademicYearDTO(nextYearEntityOpt.get().getAcdcYearId(), nextYearEntityOpt.get().getAcademicYear())
-                : new AcademicYearDTO(null, null);
-            
-            // Previous year: closest year - 1
-            Integer previousCalendarYear = closestYear.getYear() - 1;
-            Optional<AcademicYear> previousYearEntityOpt = academicYearRepository.findByYearAndIsActive(previousCalendarYear, 1);
-            previousYear = previousYearEntityOpt.isPresent()
-                ? new AcademicYearDTO(previousYearEntityOpt.get().getAcdcYearId(), previousYearEntityOpt.get().getAcademicYear())
-                : new AcademicYearDTO(null, null);
+        if (previousYearEntityOpt.isPresent()) {
+            System.out.println("Previous Year Found: acdcYearId=" + previousYearEntityOpt.get().getAcdcYearId() + 
+                             ", year=" + previousYearEntityOpt.get().getYear() + 
+                             ", academicYear=" + previousYearEntityOpt.get().getAcademicYear());
         } else {
-            // Return empty DTOs if no year found
-            return new AcademicYearInfoDTO(
-                new AcademicYearDTO(null, null),
-                new AcademicYearDTO(null, null),
-                new AcademicYearDTO(null, null)
-            );
+            System.out.println("Previous Year NOT Found for year=" + previousYearValue);
         }
+    } else {
+        // If current year not found, return empty DTOs
+        System.out.println("Current Academic Year NOT Found for calendar year=" + currentCalendarYear);
+        return new AcademicYearInfoDTO(
+            new AcademicYearDTO(null, null),
+            new AcademicYearDTO(null, null),
+            new AcademicYearDTO(null, null)
+        );
     }
+    
+    System.out.println("========================================");
     
     return new AcademicYearInfoDTO(currentYear, nextYear, previousYear);
 }
