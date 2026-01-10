@@ -25,4 +25,7 @@ public class AcademicYear {
     @Column(name = "acdc_year")
     private String academicYear;
     
+    @Column(name = "is_active")
+    private Integer isActive;
+    
 }

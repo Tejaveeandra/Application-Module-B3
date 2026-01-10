@@ -119,6 +119,32 @@ public interface DistributionRepository extends JpaRepository<Distribution, Inte
 			@Param("zoneId") Integer zoneId,
 			@Param("yearId") Integer yearId);
 
+	// Sum total_app_count for admin-to-campus distributions (issued_by_type_id = 1,
+	// issued_to_type_id = 4) by zone, year, and amount
+	// Uses DISTINCT on (acdc_year_id, app_start_no, app_end_no) to avoid double counting same application ranges
+	@Query(value = """
+			SELECT COALESCE(SUM(unique_ranges.total_app_count), 0)
+			FROM (
+				SELECT DISTINCT
+					d.acdc_year_id,
+					d.app_start_no,
+					d.app_end_no,
+					MAX(d.total_app_count) as total_app_count
+				FROM sce_application.sce_app_distrubution d
+				WHERE d.issued_by_type_id = 1
+					AND d.issued_to_type_id = 4
+					AND d.zone_id = :zoneId
+					AND d.acdc_year_id = :yearId
+					AND d.amount = :amount
+					AND d.is_active = 1
+				GROUP BY d.acdc_year_id, d.app_start_no, d.app_end_no
+			) unique_ranges
+			""", nativeQuery = true)
+	Optional<Integer> sumAdminToCampusDistributionByZoneYearAndAmount(
+			@Param("zoneId") Integer zoneId,
+			@Param("yearId") Integer yearId,
+			@Param("amount") Float amount);
+
 	// Sum total_app_count for admin-to-zone distributions (issued_by_type_id = 1,
 	// issued_to_type_id = 2) by zone and year
 	@Query("SELECT COALESCE(SUM(d.totalAppCount), 0) " +
@@ -144,6 +170,32 @@ public interface DistributionRepository extends JpaRepository<Distribution, Inte
 	Optional<Integer> sumAdminToDgmDistributionByZoneAndYear(
 			@Param("zoneId") Integer zoneId,
 			@Param("yearId") Integer yearId);
+
+	// Sum total_app_count for admin-to-DGM distributions (issued_by_type_id = 1,
+	// issued_to_type_id = 3) by zone, year, and amount
+	// Uses DISTINCT on (acdc_year_id, app_start_no, app_end_no) to avoid double counting same application ranges
+	@Query(value = """
+			SELECT COALESCE(SUM(unique_ranges.total_app_count), 0)
+			FROM (
+				SELECT DISTINCT
+					d.acdc_year_id,
+					d.app_start_no,
+					d.app_end_no,
+					MAX(d.total_app_count) as total_app_count
+				FROM sce_application.sce_app_distrubution d
+				WHERE d.issued_by_type_id = 1
+					AND d.issued_to_type_id = 3
+					AND d.zone_id = :zoneId
+					AND d.acdc_year_id = :yearId
+					AND d.amount = :amount
+					AND d.is_active = 1
+				GROUP BY d.acdc_year_id, d.app_start_no, d.app_end_no
+			) unique_ranges
+			""", nativeQuery = true)
+	Optional<Integer> sumAdminToDgmDistributionByZoneYearAndAmount(
+			@Param("zoneId") Integer zoneId,
+			@Param("yearId") Integer yearId,
+			@Param("amount") Float amount);
 
 	// Sum total_app_count for admin-to-campus distributions (issued_by_type_id = 1,
 	// issued_to_type_id = 4) by campusIds and year
@@ -210,5 +262,85 @@ public interface DistributionRepository extends JpaRepository<Distribution, Inte
 	Optional<Integer> sumProDistributionByEmpIdAndYear(
 			@Param("proEmpId") Integer proEmpId,
 			@Param("yearId") Integer yearId);
+
+	// Get year-wise total_app_count from Distribution table for ADMIN
+	// Filtered by created_by (employeeId) and amount
+	// Uses DISTINCT on (acdc_year_id, app_start_no, app_end_no) to avoid double counting same application ranges
+	// For each unique range, uses the actual range calculation (app_end_no - app_start_no + 1) to ensure accuracy
+	// Returns [acdc_year_id, total_app_count] grouped by year
+	@Query(value = """
+			SELECT
+				unique_ranges.acdc_year_id,
+				COALESCE(SUM(unique_ranges.app_count), 0) as total_app_count
+			FROM (
+				SELECT DISTINCT
+					d.acdc_year_id,
+					d.app_start_no,
+					d.app_end_no,
+					-- Use actual range calculation to ensure accuracy: (app_end_no - app_start_no + 1)
+					-- This ensures we count actual applications in the range, not stored total_app_count which might be duplicated
+					(d.app_end_no - d.app_start_no + 1) as app_count
+				FROM sce_application.sce_app_distrubution d
+				WHERE d.created_by = :employeeId
+					AND d.amount = :amount
+					AND d.is_active = 1
+				GROUP BY d.acdc_year_id, d.app_start_no, d.app_end_no
+			) unique_ranges
+			GROUP BY unique_ranges.acdc_year_id
+			ORDER BY unique_ranges.acdc_year_id
+			""", nativeQuery = true)
+	List<Object[]> getYearWiseTotalAppCountByCreatedByAndAmount(
+			@Param("employeeId") Integer employeeId,
+			@Param("amount") Float amount);
+
+	// Sum Admin→Campus distributions (issued_by_type_id = 1, issued_to_type_id = 4) by campusIds, year, and amount
+	// Uses DISTINCT on (acdc_year_id, app_start_no, app_end_no) to avoid double counting same application ranges
+	@Query(value = """
+			SELECT COALESCE(SUM(unique_ranges.app_count), 0)
+			FROM (
+				SELECT DISTINCT
+					d.acdc_year_id,
+					d.app_start_no,
+					d.app_end_no,
+					(d.app_end_no - d.app_start_no + 1) as app_count
+				FROM sce_application.sce_app_distrubution d
+				WHERE d.issued_by_type_id = 1
+					AND d.issued_to_type_id = 4
+					AND d.cmps_id IN :campusIds
+					AND d.acdc_year_id = :yearId
+					AND d.amount = :amount
+					AND d.is_active = 1
+				GROUP BY d.acdc_year_id, d.app_start_no, d.app_end_no
+			) unique_ranges
+			""", nativeQuery = true)
+	Optional<Integer> sumAdminToCampusDistributionByCampusIdsYearAndAmount(
+			@Param("campusIds") List<Integer> campusIds,
+			@Param("yearId") Integer yearId,
+			@Param("amount") Float amount);
+
+	// Sum Zone→Campus distributions (issued_by_type_id = 2, issued_to_type_id = 4) by campusIds, year, and amount
+	// Uses DISTINCT on (acdc_year_id, app_start_no, app_end_no) to avoid double counting same application ranges
+	@Query(value = """
+			SELECT COALESCE(SUM(unique_ranges.app_count), 0)
+			FROM (
+				SELECT DISTINCT
+					d.acdc_year_id,
+					d.app_start_no,
+					d.app_end_no,
+					(d.app_end_no - d.app_start_no + 1) as app_count
+				FROM sce_application.sce_app_distrubution d
+				WHERE d.issued_by_type_id = 2
+					AND d.issued_to_type_id = 4
+					AND d.cmps_id IN :campusIds
+					AND d.acdc_year_id = :yearId
+					AND d.amount = :amount
+					AND d.is_active = 1
+				GROUP BY d.acdc_year_id, d.app_start_no, d.app_end_no
+			) unique_ranges
+			""", nativeQuery = true)
+	Optional<Integer> sumZoneToCampusDistributionByCampusIdsYearAndAmount(
+			@Param("campusIds") List<Integer> campusIds,
+			@Param("yearId") Integer yearId,
+			@Param("amount") Float amount);
 
 }

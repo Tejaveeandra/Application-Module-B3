@@ -16,6 +16,7 @@ import com.application.dto.GenericDropdownDTO;
 import com.application.dto.GenericDropdownDTO_Dgm;
 import com.application.dto.GraphBarDTO;
 import com.application.dto.GraphDTO;
+import com.application.dto.AcademicYearInfoDTO;
 import com.application.service.AdminDashboardService;
 import com.application.service.ApplicationAnalyticsService;
  
@@ -105,7 +106,7 @@ public class AnalyticsController {
             @RequestParam(required = false) List<Integer> campusIds,
             @RequestParam(required = false) Integer campusId,
             @RequestParam(required = false) Float amount,
-            @RequestParam(required = false) Integer employeeId) {
+            @RequestParam(required = false) Integer empId) {
        
         try {
             // IMPORTANT: campusId (singular) uses entity_id = 4, campusIds (plural) uses entity_id = 3
@@ -123,10 +124,10 @@ public class AnalyticsController {
                 System.out.println("Campus IDs: None");
             }
             System.out.println("Amount: " + amount);
-            System.out.println("Employee ID: " + employeeId);
+            System.out.println("Employee ID: " + empId);
             System.out.println("========================================");
            
-            List<GraphBarDTO> graphData = analyticsService.getFlexibleGraphData(zoneId, campusIds, campusId, amount, employeeId);
+            List<GraphBarDTO> graphData = analyticsService.getFlexibleGraphData(zoneId, campusIds, campusId, amount, empId);
            
             // Log the final response summary
             if (campusIds != null && !campusIds.isEmpty()) {
@@ -202,6 +203,18 @@ public class AnalyticsController {
             return ResponseEntity.ok(dgmEmployees);
         } catch (Exception e) {
             System.err.println("Error in getAllDgmEmployees: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+    
+    @GetMapping("/academic-year-info")
+    public ResponseEntity<AcademicYearInfoDTO> getAcademicYearInfo() {
+        try {
+            AcademicYearInfoDTO yearInfo = analyticsService.getAcademicYearInfo();
+            return ResponseEntity.ok(yearInfo);
+        } catch (Exception e) {
+            System.err.println("Error in getAcademicYearInfo: " + e.getMessage());
             e.printStackTrace();
             return ResponseEntity.internalServerError().build();
         }

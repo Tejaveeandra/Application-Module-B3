@@ -286,6 +286,8 @@ public interface UserAppSoldRepository extends JpaRepository<UserAppSold, Long> 
         """)
     List<Object[]> getYearWiseIssuedAndSoldByZone(@Param("zoneId") Integer zoneId);
    
+    // Single Campus (campusId): Get year-wise data with entity_id = 4 for total (issued)
+    // Uses entity_id = 4 ONLY for both issued (totalAppCount) and sold
     @Query("""
             SELECT
                 u.acdcYearId,
@@ -303,17 +305,9 @@ public interface UserAppSoldRepository extends JpaRepository<UserAppSold, Long> 
     @Query("""
             SELECT
                 u.acdcYearId,
-                COALESCE(SUM(CASE WHEN d.appDistributionId IS NOT NULL THEN u.totalAppCount ELSE 0 END), 0),
-                COALESCE(SUM(CASE WHEN u.entityId = 4 THEN u.sold ELSE 0 END), 0)
+                COALESCE(SUM(u.totalAppCount), 0),
+                COALESCE(SUM(u.sold), 0)
             FROM UserAppSold u
-            LEFT JOIN Distribution d ON (
-                d.issuedByType.appIssuedId = 1
-                AND d.isActive = 1
-                AND u.entityId = d.issuedToType.appIssuedId
-                AND u.rangeStartNo >= d.appStartNo
-                AND u.rangeEndNo <= d.appEndNo
-                AND u.acdcYearId = d.academicYear.acdcYearId
-            )
             WHERE u.isActive = 1
               AND u.entityId IN (2, 3, 4)
               AND u.amount = :amount
@@ -478,7 +472,8 @@ public interface UserAppSoldRepository extends JpaRepository<UserAppSold, Long> 
     
     // ZONAL ACCOUNTANT: Get year-wise data directly from UserAppSold for zone with amount filter
     // Uses distinct series counting to avoid double counting when same series appears in multiple entity_ids
-    // For zone: entity_id = 2 for issued, entity_id = 4 for sold
+    // For zone: entity_id = 2 ONLY for issued (Zone level), entity_id = 4 for sold
+    // Admin→DGM and Admin→Campus distributions are added separately in the service layer
     @Query(value = """
             SELECT
                 series_data.acdc_year_id,
@@ -645,14 +640,17 @@ public interface UserAppSoldRepository extends JpaRepository<UserAppSold, Long> 
         """)
     List<Object[]> getYearWiseIssuedAndSoldByZoneCampusListWithEntity4(@Param("zoneId") Integer zoneId, @Param("campusIds") List<Integer> campusIds);
     
+    // DGM Rollup (campusIds): Get year-wise data with amount filter
+    // Uses entity_id = 3 ONLY for issued (DGM level), entity_id = 4 for sold
+    // Admin→Campus and Zone→Campus distributions are added separately in the service layer
     @Query("""
             SELECT
                 u.acdcYearId,
-                COALESCE(SUM(CASE WHEN u.entityId IN (1, 3) THEN u.totalAppCount ELSE 0 END), 0),
+                COALESCE(SUM(CASE WHEN u.entityId = 3 THEN u.totalAppCount ELSE 0 END), 0),
                 COALESCE(SUM(CASE WHEN u.entityId = 4 THEN u.sold ELSE 0 END), 0)
             FROM UserAppSold u
             WHERE u.isActive = 1
-              AND u.entityId IN (1, 3, 4)
+              AND u.entityId IN (3, 4)
               AND u.campus.campusId IN :campusIds
               AND u.amount = :amount
             GROUP BY u.acdcYearId

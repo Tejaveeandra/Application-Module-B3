@@ -34,6 +34,8 @@ import com.application.repository.AppStatusTrackViewRepository;
 import com.application.entity.Zone;
 import com.application.dto.GenericDropdownDTO_Dgm;
 import com.application.dto.GenericDropdownDTO;
+import com.application.dto.AcademicYearDTO;
+import com.application.dto.AcademicYearInfoDTO;
 @Service
 public class ApplicationAnalyticsService {
     @Autowired
@@ -1100,7 +1102,7 @@ MetricsAggregateDTO totalMetrics = curr; // instead of summing every year
      * @param amount Optional amount filter
      * @return List of GraphBarDTO containing year-wise issued and sold data for past 4 years
      */
-    public List<GraphBarDTO> getFlexibleGraphData(Integer zoneId, List<Integer> campusIds, Integer campusId, Float amount, Integer employeeId) {
+    public List<GraphBarDTO> getFlexibleGraphData(Integer zoneId, List<Integer> campusIds, Integer campusId, Float amount, Integer empId) {
         // Get current year (latest year) from AppStatusTrackRepository
         Integer currentYearId = appStatusTrackRepository.findLatestYearId();
         if (currentYearId == null) {
@@ -1181,12 +1183,15 @@ MetricsAggregateDTO totalMetrics = curr; // instead of summing every year
             System.out.println("Filter: Single Campus (campusId) + Amount (campusId=" + campusId + ", amt=" + amount + ")");
             rows = userAppSoldRepository.getYearWiseIssuedAndSoldByCampusAndAmount(campusId, amount);
         } else if (hasCampuses && amount != null) {
-            // Campuses (campusIds) + Amount - use NEW method with entity_id = 4
-            System.out.println("Filter: Campuses (campusIds) + Amount (camps=" + effectiveCampusIds + ", amt=" + amount + ") - Using entity_id = 4");
+            // Campuses (campusIds) + Amount - use entity_id = 3 ONLY for issued (DGM level), entity_id = 4 for sold
+            System.out.println("Filter: Campuses (campusIds) + Amount (camps=" + effectiveCampusIds + ", amt=" + amount + ") - Using entity_id = 3 ONLY for issued, entity_id = 4 for sold");
             rows = userAppSoldRepository.getYearWiseIssuedAndSoldByCampusListAndAmountWithEntity4(effectiveCampusIds, amount);
         } else if (zoneId != null && amount != null) {
-            System.out.println("Filter: Zone + Amount (zone=" + zoneId + ", amt=" + amount + ")");
-            rows = userAppSoldRepository.getYearWiseIssuedAndSoldByZoneAndAmount(zoneId, amount);
+            System.out.println("Filter: Zone + Amount (zone=" + zoneId + ", amt=" + amount + ") - Using distinct series with entity_id = 2 ONLY for issued, entity_id = 4 for sold");
+            // Use distinct series counting to avoid double counting when same series appears in multiple entity_ids
+            // For zone: entity_id = 2 ONLY for issued (Zone level), entity_id = 4 for sold
+            // Admin→DGM and Admin→Campus distributions will be added separately to avoid double counting
+            rows = userAppSoldRepository.getYearWiseIssuedAndSoldByZoneAndAmountWithDistinct(zoneId, amount);
         } else if (zoneId != null && hasCampusId) {
             // Zone + Single Campus (campusId) - use single campus method with entity_id = 4
             System.out.println("Filter: Zone + Single Campus (campusId) (zone=" + zoneId + ", campusId=" + campusId + ")");
@@ -1208,60 +1213,82 @@ MetricsAggregateDTO totalMetrics = curr; // instead of summing every year
             // Use UserAppSold for zone, but fix the query to match zone analytics
             // Zone analytics uses: entity_id = 2 (Zone) + Admin→DGM + Admin→Campus distributions
             rows = userAppSoldRepository.getYearWiseIssuedAndSoldByZone(zoneId);
-        } else if (amount != null && employeeId != null) {
+        } else if (amount != null && empId != null) {
             // NEW LOGIC: Role-based series matching from Distribution to UserAppSold
             // Get employee role and apply role-specific logic
-            List<SCEmployeeEntity> employeeList = scEmployeeRepository.findByEmpId(employeeId);
+            List<SCEmployeeEntity> employeeList = scEmployeeRepository.findByEmpId(empId);
             if (employeeList.isEmpty()) {
-                System.out.println("⚠️ Employee " + employeeId + " not found, using default amount filter");
+                System.out.println("⚠️ Employee " + empId + " not found, using default amount filter");
                 rows = userAppSoldRepository.getYearWiseIssuedAndSoldByAmount(amount);
             } else {
                 SCEmployeeEntity employee = employeeList.get(0);
                 String role = employee.getEmpStudApplicationRole();
                 if (role == null) {
-                    System.out.println("⚠️ Employee " + employeeId + " has null role, using default amount filter");
+                    System.out.println("⚠️ Employee " + empId + " has null role, using default amount filter");
                     rows = userAppSoldRepository.getYearWiseIssuedAndSoldByAmount(amount);
                 } else {
                     String trimmedRole = role.trim().toUpperCase();
-                    System.out.println("Filter: Amount + Employee Series Match (amt=" + amount + ", empId=" + employeeId + ", role=" + trimmedRole + ")");
+                    System.out.println("Filter: Amount + Employee Series Match (amt=" + amount + ", empId=" + empId + ", role=" + trimmedRole + ")");
                     
                     if (trimmedRole.equals("ADMIN")) {
-                        // ADMIN: Get issued from UserAppSold, sold/fast sale/confirmed from AppStatusTrackView
-                        System.out.println("Using ADMIN logic: Issued from UserAppSold, Sold/FastSale/Confirmed from AppStatusTrackView");
+                        // ADMIN: Get issued from Distribution table (total_app_count), sold/fast sale/confirmed from AppStatusTrackView
+                        System.out.println("Using ADMIN logic: Issued from Distribution table (total_app_count), Sold/FastSale/Confirmed from AppStatusTrackView");
                         
-                        // Get issued from UserAppSold (via Distribution series matching)
-                        List<Object[]> issuedRows = userAppSoldRepository.getYearWiseIssuedAndSoldByAmountAndEmployeeSeries(amount, employeeId);
+                        // Get issued from Distribution table (total_app_count) filtered by created_by and amount
+                        System.out.println("========================================");
+                        System.out.println("ADMIN DISTRIBUTION QUERY DEBUG");
+                        System.out.println("Employee ID: " + empId);
+                        System.out.println("Amount: " + amount);
+                        System.out.println("========================================");
+                        List<Object[]> distributionRows = distributionRepository.getYearWiseTotalAppCountByCreatedByAndAmount(empId, amount);
+                        System.out.println("Distribution rows returned: " + distributionRows.size());
                         
                         // Get sold, fast sale, and confirmed from AppStatusTrackView
-                        List<Object[]> statusRows = appStatusTrackViewRepository.getYearWiseSoldFastSaleConfirmedByAdminAndAmount(employeeId, amount);
+                        // This query matches distributions created_by = empId with amount filter
+                        // Then checks applications in AppStatusTrackView within those distribution ranges
+                        System.out.println("Getting sold/fast sale/confirmed from AppStatusTrackView for distributions created_by=" + empId + ", amount=" + amount);
+                        List<Object[]> statusRows = appStatusTrackViewRepository.getYearWiseSoldFastSaleConfirmedByAdminAndAmount(empId, amount);
+                        System.out.println("Status rows returned: " + statusRows.size());
                         
-                        // Merge: issued from UserAppSold, sold = sold + fast sale + confirmed from AppStatusTrackView
+                        // Merge: issued from Distribution, sold = sold + fast sale + confirmed from AppStatusTrackView
                         java.util.Map<Integer, long[]> mergedMap = new java.util.HashMap<>();
                         
-                        // Add issued data
-                        for (Object[] row : issuedRows) {
+                        // Add issued data from Distribution table
+                        for (Object[] row : distributionRows) {
                             Integer yearId = (Integer) row[0];
                             Long issued = row[1] != null ? ((Number) row[1]).longValue() : 0L;
                             mergedMap.put(yearId, new long[]{issued, 0L}); // sold will be updated below
+                            System.out.println("Admin Year " + yearId + ": Issued (from Distribution total_app_count with DISTINCT ranges)=" + issued);
                         }
+                        System.out.println("========================================");
                         
-                        // Add sold/confirmed data
-                        // Note: sold_count already includes "not confirmed" + "fast sale"
-                        // fast_sale_count is a subset of sold_count, so we don't add it separately
-                        // Total sold = sold_count (which includes fast sale) + confirmed_count
+                        // Add sold/confirmed data from AppStatusTrackView
+                        // Query returns: [yearId, sold_count, fast_sale_count, confirmed_count]
+                        // sold_count = "not confirmed" OR "fast sale"
+                        // fast_sale_count = "fast sale" (subset of sold_count)
+                        // confirmed_count = "confirmed"
+                        // Total sold = sold_count + confirmed_count (since fast_sale is already in sold_count)
+                        // OR if we want explicit: sold (not confirmed only) + fast_sale + confirmed
+                        // Based on user request: sold + fast sale + confirmed
+                        // We'll use: sold_count (which includes fast sale) + confirmed_count
+                        // This ensures: (not confirmed + fast sale) + confirmed = all sold applications
                         for (Object[] row : statusRows) {
                             Integer yearId = (Integer) row[0];
-                            Long sold = row[1] != null ? ((Number) row[1]).longValue() : 0L; // Already includes "not confirmed" + "fast sale"
-                            Long fastSale = row[2] != null ? ((Number) row[2]).longValue() : 0L; // Just for logging, not added
-                            Long confirmed = row[3] != null ? ((Number) row[3]).longValue() : 0L;
-                            long totalSold = sold + confirmed; // sold already includes fast sale, so don't add fastSale again
+                            Long soldCount = row[1] != null ? ((Number) row[1]).longValue() : 0L; // Includes "not confirmed" + "fast sale"
+                            Long fastSaleCount = row[2] != null ? ((Number) row[2]).longValue() : 0L; // "fast sale" (subset of soldCount)
+                            Long confirmedCount = row[3] != null ? ((Number) row[3]).longValue() : 0L; // "confirmed"
+                            
+                            // Calculate total sold: sold_count (includes fast sale) + confirmed_count
+                            // This gives us: (not confirmed + fast sale) + confirmed = all sold applications
+                            long totalSold = soldCount + confirmedCount;
                             
                             long[] data = mergedMap.getOrDefault(yearId, new long[]{0L, 0L});
                             data[1] = totalSold; // Update sold count
                             mergedMap.put(yearId, data);
                             
-                            System.out.println("Admin Year " + yearId + ": Sold=" + sold + " (includes fast sale), FastSale=" + fastSale + " (subset), Confirmed=" + confirmed + ", TotalSold=" + totalSold);
+                            System.out.println("Admin Year " + yearId + ": SoldCount=" + soldCount + " (includes not confirmed + fast sale), FastSaleCount=" + fastSaleCount + ", ConfirmedCount=" + confirmedCount + ", TotalSold=" + totalSold);
                         }
+                        System.out.println("========================================");
                         
                         // Convert merged map back to rows format [yearId, issued, sold]
                         rows = new java.util.ArrayList<>();
@@ -1269,34 +1296,43 @@ MetricsAggregateDTO totalMetrics = curr; // instead of summing every year
                             rows.add(new Object[]{entry.getKey(), entry.getValue()[0], entry.getValue()[1]});
                         }
                     } else if (trimmedRole.equals("ZONAL ACCOUNTANT")) {
-                        // ZONAL ACCOUNTANT: Directly query UserAppSold for that zone with amount filter, using distinct series
-                        List<ZonalAccountant> zonalRecords = zonalAccountantRepository.findActiveByEmployee(employeeId);
+                        // ZONAL ACCOUNTANT: Use entity_id = 2 from UserAppSold, then add Admin→DGM and Admin→Campus distributions
+                        List<ZonalAccountant> zonalRecords = zonalAccountantRepository.findActiveByEmployee(empId);
                         if (zonalRecords == null || zonalRecords.isEmpty() || zonalRecords.get(0).getZone() == null) {
-                            System.out.println("⚠️ Zonal Accountant " + employeeId + " not mapped to zone, using default amount filter");
+                            System.out.println("⚠️ Zonal Accountant " + empId + " not mapped to zone, using default amount filter");
                             rows = userAppSoldRepository.getYearWiseIssuedAndSoldByAmount(amount);
                         } else {
                             Integer empZoneId = zonalRecords.get(0).getZone().getZoneId();
-                            System.out.println("Using ZONAL ACCOUNTANT logic: Direct query UserAppSold (zone: " + empZoneId + ", amount: " + amount + ") with distinct series");
+                            System.out.println("Using ZONAL ACCOUNTANT logic: entity_id = 2 from UserAppSold (zone: " + empZoneId + ", amount: " + amount + ")");
+                            System.out.println("Will add Admin→DGM and Admin→Campus distributions to issued count");
                             rows = userAppSoldRepository.getYearWiseIssuedAndSoldByZoneAndAmountWithDistinct(empZoneId, amount);
+                            // Store zoneId for later distribution addition
+                            zoneId = empZoneId;
                         }
                     } else if (trimmedRole.equals("DGM")) {
-                        // DGM: Use entity_id = 3 directly from UserAppSold (not series matching)
-                        List<Integer> dgmCampusIds = dgmRepository.findCampusIdsByEmployeeId(employeeId);
+                        // DGM: Use entity_id = 3 directly from UserAppSold, then add Admin→Campus and Zone→Campus distributions
+                        List<Integer> dgmCampusIds = dgmRepository.findCampusIdsByEmployeeId(empId);
                         if (dgmCampusIds == null || dgmCampusIds.isEmpty()) {
-                            System.out.println("⚠️ DGM " + employeeId + " has no campuses, using default amount filter");
+                            System.out.println("⚠️ DGM " + empId + " has no campuses, using default amount filter");
                             rows = userAppSoldRepository.getYearWiseIssuedAndSoldByAmount(amount);
                         } else {
                             System.out.println("Using DGM logic: entity_id = 3 from UserAppSold (campuses: " + dgmCampusIds + ", amount: " + amount + ")");
+                            System.out.println("Will add Admin→Campus and Zone→Campus distributions to issued count");
                             rows = userAppSoldRepository.getYearWiseIssuedAndSoldByCampusListAndAmountWithEntity4(dgmCampusIds, amount);
+                            // Store DGM campusIds for later distribution addition
+                            effectiveCampusIds = dgmCampusIds;
+                            hasCampuses = true;
                         }
                     } else if (trimmedRole.equals("PRO") || trimmedRole.contains("PRINCIPAL") || trimmedRole.contains("VICE")) {
-                        // PRO/PRINCIPAL/VICE PRINCIPAL: Use entity_id = 4 directly from UserAppSold (not series matching)
+                        // PRO/PRINCIPAL/VICE PRINCIPAL: Use entity_id = 4 directly from UserAppSold for campus calculation
+                        // Uses campusId from employee record and entity_id = 4 for both issued (totalAppCount) and sold
                         int empCampusId = employee.getEmpCampusId();
                         if (empCampusId <= 0) {
-                            System.out.println("⚠️ " + trimmedRole + " " + employeeId + " has invalid campusId, using default amount filter");
+                            System.out.println("⚠️ " + trimmedRole + " " + empId + " has invalid campusId, using default amount filter");
                             rows = userAppSoldRepository.getYearWiseIssuedAndSoldByAmount(amount);
                         } else {
                             System.out.println("Using " + trimmedRole + " logic: entity_id = 4 from UserAppSold (campusId: " + empCampusId + ", amount: " + amount + ")");
+                            System.out.println("Query uses entity_id = 4 for campus calculation - totalAppCount for issued, sold for sold count");
                             rows = userAppSoldRepository.getYearWiseIssuedAndSoldByCampusAndAmount(empCampusId, amount);
                         }
                     } else {
@@ -1382,9 +1418,28 @@ System.out.println(" Year ID: " + yearId + " | Issued (totalAppCount): " + total
                 }
             }
         } else if (zoneId != null && amount != null) {
-            // When amount filter is present, use ONLY UserAppSold data (totalAppCount)
-            // Do NOT add distributions - issued is calculated directly from UserAppSold
-            System.out.println("Zone " + zoneId + " with amount filter (" + amount + "): Using ONLY UserAppSold data (totalAppCount), NOT adding distributions");
+            // When amount filter is present, add Admin→DGM and Admin→Campus distributions to issued count
+            // This applies to both: (1) zoneId parameter passed directly, and (2) ZONAL ACCOUNTANT role with empId
+            // UserAppSold query returns entity_id = 2 ONLY (Zone level) with totalAppCount, so we add Admin→DGM and Admin→Campus distributions
+            // This avoids double counting because entity_id=3 (DGM) is excluded from UserAppSold
+            System.out.println("Adding Admin→DGM and Admin→Campus distributions for zoneId: " + zoneId + " with amount filter: " + amount);
+            for (Integer yearId : yearIds) {
+                // Get distribution counts for this year (Admin→DGM and Admin→Campus) with amount filter
+                // Uses DISTINCT on ranges to avoid duplicate counting within Distribution table
+                Integer adminToDgmDist = distributionRepository.sumAdminToDgmDistributionByZoneYearAndAmount(zoneId, yearId, amount).orElse(0);
+                Integer adminToCampusDist = distributionRepository.sumAdminToCampusDistributionByZoneYearAndAmount(zoneId, yearId, amount).orElse(0);
+                
+                // Add distributions to issued count
+                long[] data = yearDataMap.getOrDefault(yearId, new long[]{0L, 0L});
+                long updatedIssued = data[0] + adminToDgmDist + adminToCampusDist;
+                yearDataMap.put(yearId, new long[]{updatedIssued, data[1]});
+                
+                if (adminToDgmDist > 0 || adminToCampusDist > 0) {
+                    System.out.println("Zone " + zoneId + " Year " + yearId + " Amount " + amount + ": UserAppSold (entity_id=2 ONLY) totalAppCount=" + data[0] + 
+                                     ", Added Admin→DGM: " + adminToDgmDist + ", Admin→Campus: " + adminToCampusDist + 
+                                     ", Total issued=" + updatedIssued);
+                }
+            }
         }
         
         // If campusIds is present (DGM rollup), add Admin→Campus and Zone→Campus distributions to issued count for each year
@@ -1413,8 +1468,28 @@ System.out.println(" Year ID: " + yearId + " | Issued (totalAppCount): " + total
                 }
             }
         } else if (hasCampuses && effectiveCampusIds != null && !effectiveCampusIds.isEmpty() && amount != null) {
-            // When amount filter is present, use ONLY UserAppSold data, do NOT add distributions
-            System.out.println("CampusIds " + effectiveCampusIds + " with amount filter (" + amount + "): Using ONLY UserAppSold data, NOT adding distributions");
+            // When amount filter is present, add Admin→Campus and Zone→Campus distributions to issued count
+            // This applies to both: (1) campusIds parameter passed directly, and (2) DGM role with empId
+            // UserAppSold query returns entity_id = 3 ONLY (DGM level) with totalAppCount, so we add Admin→Campus and Zone→Campus distributions
+            // This avoids double counting because entity_id=1 (Admin) and entity_id=4 (Campus) are excluded from UserAppSold
+            System.out.println("Adding Admin→Campus and Zone→Campus distributions for campusIds: " + effectiveCampusIds + " with amount filter: " + amount);
+            for (Integer yearId : yearIds) {
+                // Get distribution counts for this year (Admin→Campus and Zone→Campus) with amount filter
+                // Uses DISTINCT on ranges to avoid duplicate counting within Distribution table
+                Integer adminToCampusDist = distributionRepository.sumAdminToCampusDistributionByCampusIdsYearAndAmount(effectiveCampusIds, yearId, amount).orElse(0);
+                Integer zoneToCampusDist = distributionRepository.sumZoneToCampusDistributionByCampusIdsYearAndAmount(effectiveCampusIds, yearId, amount).orElse(0);
+                
+                // Add distributions to issued count
+                long[] data = yearDataMap.getOrDefault(yearId, new long[]{0L, 0L});
+                long updatedIssued = data[0] + adminToCampusDist + zoneToCampusDist;
+                yearDataMap.put(yearId, new long[]{updatedIssued, data[1]});
+                
+                if (adminToCampusDist > 0 || zoneToCampusDist > 0) {
+                    System.out.println("CampusIds " + effectiveCampusIds + " Year " + yearId + " Amount " + amount + ": UserAppSold (entity_id=3 ONLY) totalAppCount=" + data[0] + 
+                                     ", Added Admin→Campus: " + adminToCampusDist + ", Zone→Campus: " + zoneToCampusDist + 
+                                     ", Total issued=" + updatedIssued);
+                }
+            }
         }
         // Log aggregated data summary
         if (campusIds != null && campusIds.size() > 1) {
@@ -1606,5 +1681,98 @@ return true;
 });
 })
 .collect(Collectors.toList());
+}
+
+/**
+ * Get Current, Next, and Previous Academic Years
+ * Returns academic year ID and academic year string for each
+ * Current year is determined based on the current calendar year
+ * 
+ * @return AcademicYearInfoDTO containing current, next, and previous academic years
+ */
+public AcademicYearInfoDTO getAcademicYearInfo() {
+    // Get current calendar year (e.g., 2025)
+    int currentCalendarYear = java.time.Year.now().getValue();
+    
+    // Find academic year where year field matches current calendar year
+    Optional<AcademicYear> currentYearEntityOpt = academicYearRepository.findByYearAndIsActive(currentCalendarYear, 1);
+    
+    AcademicYearDTO currentYear;
+    AcademicYearDTO nextYear;
+    AcademicYearDTO previousYear;
+    
+    if (currentYearEntityOpt.isPresent()) {
+        AcademicYear currentYearEntity = currentYearEntityOpt.get();
+        currentYear = new AcademicYearDTO(
+            currentYearEntity.getAcdcYearId(),
+            currentYearEntity.getAcademicYear()
+        );
+        
+        // Next year: year + 1
+        Integer nextCalendarYear = currentCalendarYear + 1;
+        Optional<AcademicYear> nextYearEntityOpt = academicYearRepository.findByYearAndIsActive(nextCalendarYear, 1);
+        nextYear = nextYearEntityOpt.isPresent()
+            ? new AcademicYearDTO(nextYearEntityOpt.get().getAcdcYearId(), nextYearEntityOpt.get().getAcademicYear())
+            : new AcademicYearDTO(null, null);
+        
+        // Previous year: year - 1
+        Integer previousCalendarYear = currentCalendarYear - 1;
+        Optional<AcademicYear> previousYearEntityOpt = academicYearRepository.findByYearAndIsActive(previousCalendarYear, 1);
+        previousYear = previousYearEntityOpt.isPresent()
+            ? new AcademicYearDTO(previousYearEntityOpt.get().getAcdcYearId(), previousYearEntityOpt.get().getAcademicYear())
+            : new AcademicYearDTO(null, null);
+    } else {
+        // If current year not found, try to find the closest year
+        // Get all active years ordered by year field descending (filtered by is_active = 1)
+        List<AcademicYear> allActiveYears = academicYearRepository.findAllActiveOrderedByYearDesc();
+        
+        if (allActiveYears == null || allActiveYears.isEmpty()) {
+            // Return empty DTOs if no active years found
+            return new AcademicYearInfoDTO(
+                new AcademicYearDTO(null, null),
+                new AcademicYearDTO(null, null),
+                new AcademicYearDTO(null, null)
+            );
+        }
+        
+        // Find the academic year with year field closest to current calendar year
+        AcademicYear closestYear = null;
+        int minDifference = Integer.MAX_VALUE;
+        
+        for (AcademicYear year : allActiveYears) {
+            int difference = Math.abs(year.getYear() - currentCalendarYear);
+            if (difference < minDifference) {
+                minDifference = difference;
+                closestYear = year;
+            }
+        }
+        
+        if (closestYear != null) {
+            currentYear = new AcademicYearDTO(closestYear.getAcdcYearId(), closestYear.getAcademicYear());
+            
+            // Next year: closest year + 1
+            Integer nextCalendarYear = closestYear.getYear() + 1;
+            Optional<AcademicYear> nextYearEntityOpt = academicYearRepository.findByYearAndIsActive(nextCalendarYear, 1);
+            nextYear = nextYearEntityOpt.isPresent()
+                ? new AcademicYearDTO(nextYearEntityOpt.get().getAcdcYearId(), nextYearEntityOpt.get().getAcademicYear())
+                : new AcademicYearDTO(null, null);
+            
+            // Previous year: closest year - 1
+            Integer previousCalendarYear = closestYear.getYear() - 1;
+            Optional<AcademicYear> previousYearEntityOpt = academicYearRepository.findByYearAndIsActive(previousCalendarYear, 1);
+            previousYear = previousYearEntityOpt.isPresent()
+                ? new AcademicYearDTO(previousYearEntityOpt.get().getAcdcYearId(), previousYearEntityOpt.get().getAcademicYear())
+                : new AcademicYearDTO(null, null);
+        } else {
+            // Return empty DTOs if no year found
+            return new AcademicYearInfoDTO(
+                new AcademicYearDTO(null, null),
+                new AcademicYearDTO(null, null),
+                new AcademicYearDTO(null, null)
+            );
+        }
+    }
+    
+    return new AcademicYearInfoDTO(currentYear, nextYear, previousYear);
 }
 }
