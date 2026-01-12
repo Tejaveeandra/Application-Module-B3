@@ -671,7 +671,7 @@ public class StudentAdmissionService {
     }
 
     @Transactional
-    public StudentAcademicDetails createAdmissionAndSale(StudentAdmissionDTO formData) {
+    public synchronized StudentAcademicDetails createAdmissionAndSale(StudentAdmissionDTO formData) {
 
         // ==============================================================
         // PART 1: CREATE THE STUDENT
@@ -692,6 +692,14 @@ public class StudentAdmissionService {
             throw new EntityNotFoundException(
                     "A PRO has not been linked to the distribution for Admission Number: " + admissionNumberNumeric);
         }
+
+        // 1.5 Check if Admission Number already exists (Active)
+        Optional<StudentAcademicDetails> existingStudent = academicDetailsRepo
+                .findByStudAdmsNoAndIs_active(admissionNumberNumeric, 1);
+        if (existingStudent.isPresent()) {
+            throw new RuntimeException("Student already exists with Admission Number: " + admissionNumberNumeric);
+        }
+
         // --- 1. Save Academic Details ---
         StudentAcademicDetails academicDetails = new StudentAcademicDetails();
 
@@ -1140,7 +1148,8 @@ public class StudentAdmissionService {
     public ApplicationDetailsDTO getApplicationDetailsByAdmissionNo(Long studAdmsNo) {
         // 1. Fetch the main academic record (only active records with is_active = 1)
         StudentAcademicDetails student = academicDetailsRepo.findByStudAdmsNoAndIs_active(studAdmsNo, 1)
-                .orElseThrow(() -> new EntityNotFoundException("Student not found with Admission No: " + studAdmsNo + " or record is not active"));
+                .orElseThrow(() -> new EntityNotFoundException(
+                        "Student not found with Admission No: " + studAdmsNo + " or record is not active"));
 
         // 2. Fetch related records (handle possibility of them being null)
         Optional<StudentPersonalDetails> personalOpt = personalDetailsRepo.findByStudentAcademicDetails(student);
@@ -1298,7 +1307,8 @@ public class StudentAdmissionService {
 
         // 1. Fetch main entity
         StudentAcademicDetails academicDetails = academicDetailsRepo.findByStudAdmsNoAndIs_active(studAdmsNo, 1)
-                .orElseThrow(() -> new EntityNotFoundException("Student not found with Admission No: " + studAdmsNo + " or record is not active"));
+                .orElseThrow(() -> new EntityNotFoundException(
+                        "Student not found with Admission No: " + studAdmsNo + " or record is not active"));
 
         // 2. Fetch related records
         StudentPersonalDetails personalDetails = personalDetailsRepo.findByStudentAcademicDetails(academicDetails)

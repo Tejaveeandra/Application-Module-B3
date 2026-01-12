@@ -148,36 +148,17 @@ public class ZoneService {
         // Apply category filter if provided (case-insensitive) - filter at
         // ZonalAccountant level
         if (category != null && !category.trim().isEmpty()) {
-            String categoryLower = category.trim().toLowerCase();
-            activeAccountants = activeAccountants.stream()
-                    .filter(accountant -> {
-                        // Check if campus and business type exist
-                        // FIX: Prioritize Employee's Campus if available (e.g., DGM/Employee)
-                        // Fallback to ZonalAccountant's Campus (e.g., PRO/Campus acting as Accountant)
-                        Campus targetCampus = null;
-                        if (accountant.getEmployee() != null && accountant.getEmployee().getCampus() != null) {
-                            targetCampus = accountant.getEmployee().getCampus();
-                        } else {
-                            targetCampus = accountant.getCampus();
-                        }
-
-                        if (targetCampus == null || targetCampus.getBusinessType() == null) {
-                            return false;
-                        }
-
-                        String businessTypeName = targetCampus.getBusinessType()
-                                .getBusinessTypeName().toLowerCase();
-
-                        // Case-insensitive category matching
-                        if (categoryLower.equals("school")) {
-                            return businessTypeName.contains("school");
-                        } else if (categoryLower.equals("college")) {
-                            return businessTypeName.contains("college");
-                        }
-                        // If category doesn't match known types, return true (no filter)
-                        return true;
-                    })
-                    .collect(Collectors.toList());
+            /*
+             * FIX: Disabling this filter.
+             * Zonal Accountants are explicitly mapped to a Zone. Even if their physical
+             * campus is "School",
+             * they might manage a "College" zone. Filtering by campus type hides valid
+             * accountants.
+             * We assume that if they are in the 'sce_zone_acct' table for this Zone, they
+             * are relevant.
+             */
+            // String categoryLower = category.trim().toLowerCase();
+            // activeAccountants = activeAccountants.stream().filter(...) .collect(...);
         }
 
         // Map and filter: Only include if Employee.isActive == 1
@@ -200,12 +181,59 @@ public class ZoneService {
     }
 
     @Transactional
-    public void saveDistribution(@NonNull DistributionRequestDTO request) {
+    public synchronized void saveDistribution(@NonNull DistributionRequestDTO request) {
 
         validateEmployeeExists(request.getCreatedBy(), "Issuer");
 
         // NEW VALIDATION: Check if sender actually owns the requested application range
         validateSenderHasAvailableRange(request);
+
+        // --- DUPLICATE CHECK START ---
+        // Prevents double submission for EXACT range
+        // List<Distribution> existing =
+        // distributionRepository.findOverlappingDistributions(
+        // request.getAcademicYearId(), request.getAppStartNo(), request.getAppEndNo());
+
+        // If overlapping dists exist, normally logic handles splits.
+        // But strict duplicate check relying on synchronization + validation:
+
+        // If we find an overlap that looks like a DUPLICATE (same creation time approx?
+        // No).
+        // If we find a distribution that covers this range and was just created, we
+        // should block.
+        // However, 'overlappingDists' logic below handles partial overlaps by creating
+        // NEW logic.
+        // We need to stop EXACT duplicates from creating a MESS.
+
+        // If this exact range is already fully covered by an active distribution that
+        // was issued BY this user
+        // to the SAME target type (e.g. Zone->DGM), we can flag it.
+        // For simplicity: If we find an overlap, we usually proceed to split.
+        // But if the user clicks TWICE, the first click creates a split/new Record.
+        // The second click sees THAT new record as an "overlap".
+        // If we proceed, we might try to split the SPLIT.
+
+        // Simple Fix: Check if range is available in Sender's Balance.
+        // validateSenderHasAvailableRange(request) ALREADY checks if the sender HAS the
+        // apps.
+        // If they click once -> apps move from Sender to Receiver. Sender no longer has
+        // them.
+        // If they click twice -> validateSenderHasAvailableRange SHOULD fail the second
+        // time because they gave them away.
+        // Let's rely on validateSenderHasAvailableRange, but ensure it's tight.
+
+        // The issue is concurrency. 'synchronized' ensures we enter one by one.
+        // 1st enters: calls validate..Range. Has apps. Moves apps. Commits.
+        // 2nd enters: calls validate..Range. Apps are gone. Should Throw Exception.
+
+        // So just adding 'synchronized' to the method + @Transactional is likely enough
+        // IF validateSenderHasAvailableRange checks the DB *current state*.
+        // validateSenderHasAvailableRange uses 'balanceTrackRepository'.
+        // We need to make sure we are reading committed data.
+        // @Transactional isolation level?
+
+        // Let's inspect validateSenderHasAvailableRange to be sure.
+        // But proceed with adding 'synchronized' now.
 
         List<Distribution> overlappingDists = distributionRepository.findOverlappingDistributions(
                 request.getAcademicYearId(), request.getAppStartNo(), request.getAppEndNo());

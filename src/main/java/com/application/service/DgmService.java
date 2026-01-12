@@ -825,7 +825,7 @@ public class DgmService {
     }
 
     @Transactional
-    public void submitForm(@NonNull FormSubmissionDTO formDto) {
+    public synchronized void submitForm(@NonNull FormSubmissionDTO formDto) {
         int issuerUserId = formDto.getUserId();
         int receiverEmpId = formDto.getDgmEmployeeId();
 
@@ -848,6 +848,19 @@ public class DgmService {
         // 2. Check Overlaps
         int startNo = Integer.parseInt(formDto.getApplicationNoFrom());
         int endNo = Integer.parseInt(formDto.getApplicationNoTo());
+
+        // --- DUPLICATE CHECK START ---
+        // Prevents double submission for EXACT range
+        // List<Distribution> existing =
+        // distributionRepository.findOverlappingDistributions(
+        // formDto.getAcademicYearId(), startNo, endNo);
+        // If overlapping dists exist, we normally allow logic to handle splits.
+        // BUT strict duplicate check:
+        // logic handled by 'validateSenderHasAvailableRange' if synchronized.
+        // If we are synchronized, the first thread will move the apps. The second will
+        // fail validation.
+        // We will rely on synchronization + validation.
+
         List<Distribution> overlappingDists = distributionRepository.findOverlappingDistributions(
                 formDto.getAcademicYearId(), startNo, endNo);
 

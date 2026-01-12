@@ -180,8 +180,9 @@ public class ApplicationFastSale {
 	}
 
 	// Application Fast SALE - college
+	// Application Fast SALE - college
 	@Transactional
-	public StudentAcademicDetails createFastSaleAdmission(StudentFastSaleDTO formData) {
+	public synchronized StudentAcademicDetails createFastSaleAdmission(StudentFastSaleDTO formData) {
 
 		Long admissionNumberNumeric = formData.getStudAdmsNo();
 		if (admissionNumberNumeric == null) {
@@ -194,6 +195,13 @@ public class ApplicationFastSale {
 		if (pro == null) {
 			throw new EntityNotFoundException(
 					"A PRO has not been linked to the distribution for Admission Number: " + admissionNumberNumeric);
+		}
+
+		// 1.5 Check if Admission Number already exists (Active)
+		Optional<StudentAcademicDetails> existingStudent = studentAcademicDetailsRepository
+				.findByStudAdmsNoAndIs_active(admissionNumberNumeric, 1);
+		if (existingStudent.isPresent()) {
+			throw new RuntimeException("Student already exists with Admission Number: " + admissionNumberNumeric);
 		}
 
 		// --- 1. Save Academic Details (only image fields + essentials) ---
@@ -542,8 +550,9 @@ public class ApplicationFastSale {
 	}
 
 	// ApplicationSale - Colleges
+	// ApplicationSale - Colleges
 	@Transactional
-	public StudentAcademicDetails createApplicationSale(StudentApplicationSaleColegeDTO formData) {
+	public synchronized StudentAcademicDetails createApplicationSale(StudentApplicationSaleColegeDTO formData) {
 
 		Long admissionNumberNumeric = formData.getStudAdmsNo();
 		if (admissionNumberNumeric == null) {
@@ -1297,8 +1306,10 @@ public class ApplicationFastSale {
 		// ==============================================================
 		// 1. FETCH EXISTING ENTITIES (UPSERT) - Only active records (is_active = 1)
 		// ==============================================================
-		StudentAcademicDetails academicDetails = studentAcademicDetailsRepository.findByStudAdmsNoAndIs_active(studAdmsNo, 1)
-				.orElseThrow(() -> new EntityNotFoundException("Student not found: " + studAdmsNo + " or record is not active"));
+		StudentAcademicDetails academicDetails = studentAcademicDetailsRepository
+				.findByStudAdmsNoAndIs_active(studAdmsNo, 1)
+				.orElseThrow(() -> new EntityNotFoundException(
+						"Student not found: " + studAdmsNo + " or record is not active"));
 
 		StudentPersonalDetails personalDetails = personalDetailsRepository.findByStudentAcademicDetails(academicDetails)
 				.orElseGet(StudentPersonalDetails::new);

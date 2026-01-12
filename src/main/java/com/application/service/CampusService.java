@@ -85,13 +85,13 @@ public class CampusService {
     }
 
     // --- Dropdowns & Helpers with caching ---
-    // @Cacheable("academicYears")
+    @Cacheable("academicYears")
     public List<GenericDropdownDTO> getAllAcademicYears() {
         return academicYearRepository.findAll().stream()
                 .map(y -> new GenericDropdownDTO(y.getAcdcYearId(), y.getAcademicYear())).collect(Collectors.toList());
     }
 
-    // @Cacheable("states")
+    @Cacheable("states")
     public List<GenericDropdownDTO> getAllStates() {
         return stateRepository.findAll().stream().map(s -> new GenericDropdownDTO(s.getStateId(), s.getStateName()))
                 .collect(Collectors.toList());
@@ -102,7 +102,7 @@ public class CampusService {
         return districtRepository.findAll();
     }
 
-    // @Cacheable(cacheNames = "districtsByState", key = "#stateId")
+    @Cacheable(cacheNames = "districtsByState", key = "#stateId")
     public List<GenericDropdownDTO> getDistrictsByStateId(int stateId) {
         return districtRepository.findByStateStateId(stateId).stream()
                 .map(d -> new GenericDropdownDTO(d.getDistrictId(), d.getDistrictName())).collect(Collectors.toList());
@@ -160,13 +160,13 @@ public class CampusService {
                 .map(c -> new GenericDropdownDTO(c.getCampusId(), c.getCampusName())).collect(Collectors.toList());
     }
 
-    // @Cacheable("campaignAreas")
+    @Cacheable("campaignAreas")
     public List<GenericDropdownDTO> getAllCampaignAreas() {
         return campaignRepository.findAll().stream()
                 .map(c -> new GenericDropdownDTO(c.getCampaignId(), c.getAreaName())).collect(Collectors.toList());
     }
 
-    // @Cacheable(cacheNames = "prosByCampus", key = "#campusId")
+    @Cacheable(cacheNames = "prosByCampus", key = "#campusId")
     public List<GenericDropdownDTO> getProsByCampusId(int campusId) {
         List<Integer> employeeIds = campusProViewRepository.findByCampusId(campusId).stream()
                 .map(CampusProView::getCmps_emp_id).toList();
@@ -185,7 +185,7 @@ public class CampusService {
         return dropdown == null ? List.of() : dropdown;
     }
 
-    // @Cacheable("issuedToTypes")
+    @Cacheable("issuedToTypes")
     public List<GenericDropdownDTO> getAllIssuedToTypes() {
         return appIssuedTypeRepository.findAll().stream()
                 .map(t -> new GenericDropdownDTO(t.getAppIssuedId(), t.getTypeName())).collect(Collectors.toList());
@@ -199,18 +199,18 @@ public class CampusService {
                 .collect(Collectors.toList());
     }
 
-    // @Cacheable(cacheNames = "mobileNumberByEmpId", key = "#empId")
+    @Cacheable(cacheNames = "mobileNumberByEmpId", key = "#empId")
     public String getMobileNumberByEmpId(int empId) {
         return employeeRepository.findMobileNoByEmpId(empId);
     }
 
-    // @Cacheable(cacheNames = "campusByCampaign", key = "#campaignId")
+    @Cacheable(cacheNames = "campusByCampaign", key = "#campaignId")
     public List<GenericDropdownDTO> getCampusByCampaignId(int campaignId) {
         return campusRepository.findCampusByCampaignId(campaignId).stream()
                 .map(c -> new GenericDropdownDTO(c.getCampusId(), c.getCampusName())).toList();
     }
 
-    // @Cacheable(cacheNames = "campaignsByCity", key = "#cityId")
+    @Cacheable(cacheNames = "campaignsByCity", key = "#cityId")
     public List<GenericDropdownDTO> getCampaignsByCityId(int cityId) {
         return campaignRepository.findByCity_CityId(cityId).stream()
                 .map(c -> new GenericDropdownDTO(c.getCampaignId(), c.getAreaName())).toList();
@@ -258,7 +258,7 @@ public class CampusService {
     }
 
     @Transactional
-    public void submitDgmToCampusForm(@NonNull DgmToCampusFormDTO formDto) {
+    public synchronized void submitDgmToCampusForm(@NonNull DgmToCampusFormDTO formDto) {
         int dgmUserId = formDto.getUserId();
         int dgmUserTypeId = getDgmUserTypeId(dgmUserId);
 
@@ -271,6 +271,14 @@ public class CampusService {
         // -------------------------------------------------------
         int startNo = Integer.parseInt(formDto.getApplicationNoFrom());
         int endNo = Integer.parseInt(formDto.getApplicationNoTo());
+
+        // --- DUPLICATE CHECK START ---
+        // Prevents double submission for EXACT range
+        // List<Distribution> existing =
+        // distributionRepository.findOverlappingDistributions(
+        // formDto.getAcademicYearId(), startNo, endNo);
+        // If overlapping dists exist, normally logic handles splits.
+        // But strict duplicate check relying on synchronization + validation:
 
         // 1. Find conflicts
         List<Distribution> overlappingDists = distributionRepository.findOverlappingDistributions(
