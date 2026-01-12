@@ -148,17 +148,60 @@ public class ZoneService {
         // Apply category filter if provided (case-insensitive) - filter at
         // ZonalAccountant level
         if (category != null && !category.trim().isEmpty()) {
-            /*
-             * FIX: Disabling this filter.
-             * Zonal Accountants are explicitly mapped to a Zone. Even if their physical
-             * campus is "School",
-             * they might manage a "College" zone. Filtering by campus type hides valid
-             * accountants.
-             * We assume that if they are in the 'sce_zone_acct' table for this Zone, they
-             * are relevant.
-             */
-            // String categoryLower = category.trim().toLowerCase();
-            // activeAccountants = activeAccountants.stream().filter(...) .collect(...);
+            String categoryLower = category.trim().toLowerCase();
+            activeAccountants = activeAccountants.stream()
+                    .filter(accountant -> {
+                        // Check Employee's Campus
+                        Campus empCampus = (accountant.getEmployee() != null) ? accountant.getEmployee().getCampus()
+                                : null;
+                        if (empCampus != null && empCampus.getBusinessType() != null) {
+                            String type = empCampus.getBusinessType().getBusinessTypeName().toLowerCase();
+                            boolean matches = false;
+                            if (categoryLower.equals("school"))
+                                matches = type.contains("school");
+                            else if (categoryLower.equals("college"))
+                                matches = type.contains("college");
+                            else
+                                matches = true; // Unknown category -> no filter
+
+                            if (matches)
+                                return true;
+                        }
+
+                        // Fallback: Check Accountant's Campus (if employee campus didn't match or
+                        // wasn't present)
+                        Campus acctCampus = accountant.getCampus();
+                        if (acctCampus != null && acctCampus.getBusinessType() != null) {
+                            String type = acctCampus.getBusinessType().getBusinessTypeName().toLowerCase();
+                            boolean matches = false;
+                            if (categoryLower.equals("school"))
+                                matches = type.contains("school");
+                            else if (categoryLower.equals("college"))
+                                matches = type.contains("college");
+                            else
+                                matches = true;
+
+                            if (matches)
+                                return true;
+                        }
+
+                        // If neither explicitly matches the category, but we had campuss...
+                        // If one was checked and failed, do we fail?
+                        // Original logic: "If targetCampus found, check it. If fail, return false."
+                        // New logic: "If ANY valid campus matches, return true."
+
+                        // If NO campus found at all?
+                        if (empCampus == null && acctCampus == null)
+                            return false;
+
+                        // If we are here, it means we found campuses but none matched the specific
+                        // "school" or "college" category.
+                        // However, if category is active "school" and we only found "college", we
+                        // should return false.
+                        // Returns false if no match found.
+                        return false;
+                    })
+                    .collect(Collectors.toList());
         }
 
         // Map and filter: Only include if Employee.isActive == 1
