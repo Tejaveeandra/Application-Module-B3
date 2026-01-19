@@ -9,7 +9,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class DgmWithCampusesDTO {
-    private Integer empId;
-    private String dgmName;
+    private Integer id;
+    private String name;
     private List<Integer> cmpsId;
 }

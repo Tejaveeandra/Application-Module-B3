@@ -470,8 +470,8 @@ public class DgmService {
             DgmWithCampusesDTO dto = dgmMap.get(empId);
             if (dto == null) {
                 dto = new DgmWithCampusesDTO();
-                dto.setEmpId(empId);
-                dto.setDgmName(dgmName);
+                dto.setId(empId);
+                dto.setName(dgmName);
                 dto.setCmpsId(new ArrayList<>());
                 dgmMap.put(empId, dto);
             }
