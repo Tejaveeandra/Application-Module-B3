@@ -472,7 +472,7 @@ public class DgmService {
                 dto = new DgmWithCampusesDTO();
                 dto.setEmpId(empId);
                 dto.setDgmName(dgmName);
-                dto.setCampusIds(new ArrayList<>());
+                dto.setCmpsId(new ArrayList<>());
                 dgmMap.put(empId, dto);
             }
 
@@ -481,8 +481,8 @@ public class DgmService {
                 Integer campusId = dgm.getCampus().getCampusId();
 
                 // Check if campus ID already exists in the list
-                if (!dto.getCampusIds().contains(campusId)) {
-                    dto.getCampusIds().add(campusId);
+                if (!dto.getCmpsId().contains(campusId)) {
+                    dto.getCmpsId().add(campusId);
                 }
             }
         }

@@ -11,6 +11,5 @@ import lombok.NoArgsConstructor;
 public class DgmWithCampusesDTO {
     private Integer empId;
     private String dgmName;
-    private List<Integer> campusIds;
+    private List<Integer> cmpsId;
 }
-
