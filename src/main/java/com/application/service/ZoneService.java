@@ -778,7 +778,6 @@ public class ZoneService {
         // CRITICAL: Clear persistence context to ensure we see the latest data
         distributionRepository.flush();
 
-        // NEW LOGIC: Calculate available balance by subtracting what was given away
         // 1. Get ALL Active Distributions RECEIVED by this user (what they hold)
         List<Distribution> allReceived = distributionRepository.findActiveHoldingsForEmp(empId, acYearId);
 
@@ -803,31 +802,33 @@ public class ZoneService {
         System.out.println("DEBUG: rebuildBalancesFromDistributions - Employee: " + empId
                 + ", Given Away Distributions: " + givenAway.size());
 
-        // 5. Get CURRENT Active Balance Rows for this amount
+        // 5. Get CURRENT Active Balance Rows for Reuse
+        // REUSE STRATEGY: Instead of deactivating all, we keep them in a list/queue
         List<BalanceTrack> currentBalances = balanceTrackRepository.findActiveBalancesByEmpAndAmount(acYearId, empId,
                 amount);
+        // Use a LinkedList for easy removal/popping
+        java.util.LinkedList<BalanceTrack> reusePool = new java.util.LinkedList<>(currentBalances);
 
-        // 6. Deactivate old balance rows
-        for (BalanceTrack b : currentBalances) {
-            b.setIsActive(0);
-            balanceTrackRepository.save(b);
-            System.out.println("DEBUG: Deactivated old balance row ID: " + b.getAppBalanceTrkId());
-        }
+        boolean atLeastOneActiveRowCreated = false;
 
         // 7. Calculate remaining ranges by subtracting given away from received
         if (received.isEmpty()) {
             System.out.println("WARNING: No received distributions found for Employee " + empId + " with amount "
-                    + amount + ". Creating balance row with is_active = 0.");
-            // Create a balance track row with is_active = 0 to maintain history (do not
-            // delete)
-            BalanceTrack nb = createNewBalanceTrack(empId, acYearId, typeId, createdBy);
-            nb.setAmount(amount);
+                    + amount);
+            // We need a zero-balance active record
+            BalanceTrack nb;
+            if (!reusePool.isEmpty()) {
+                nb = reusePool.poll(); // Reuse existing
+            } else {
+                nb = createNewBalanceTrack(empId, acYearId, typeId, createdBy);
+                nb.setAmount(amount);
+            }
             nb.setAppFrom(0);
             nb.setAppTo(0);
             nb.setAppAvblCnt(0);
-            nb.setIsActive(0); // Set inactive instead of deleting
+            nb.setIsActive(1); // CORRECT: Keep it active
             balanceTrackRepository.saveAndFlush(nb);
-            System.out.println("DEBUG: Created inactive balance row for employee " + empId + " with zero count");
+            atLeastOneActiveRowCreated = true;
         } else {
             for (Distribution receivedDist : received) {
                 int receivedStart = (int) receivedDist.getAppStartNo();
@@ -855,16 +856,21 @@ public class ZoneService {
                 // Calculate remaining ranges (received minus given away)
                 List<int[]> remainingRanges = calculateRemainingRanges(receivedStart, receivedEnd, givenAwayRanges);
 
-                // Create balance tracks for remaining ranges
+                // Create/Reuse balance tracks for remaining ranges
                 for (int[] range : remainingRanges) {
                     int remainingStart = range[0];
                     int remainingEnd = range[1];
                     int remainingCount = remainingEnd - remainingStart + 1;
 
-                    BalanceTrack nb = createNewBalanceTrack(empId, acYearId, typeId, createdBy);
-                    nb.setAmount(amount);
-                    nb.setAppAvblCnt(remainingCount);
+                    BalanceTrack nb;
+                    if (!reusePool.isEmpty()) {
+                        nb = reusePool.poll(); // Reuse
+                    } else {
+                        nb = createNewBalanceTrack(empId, acYearId, typeId, createdBy);
+                        nb.setAmount(amount);
+                    }
 
+                    nb.setAppAvblCnt(remainingCount);
                     // If available count is 0, set app_from = 0, app_to = 0, and is_active = 1
                     if (remainingCount <= 0) {
                         nb.setAppFrom(0);
@@ -877,11 +883,40 @@ public class ZoneService {
                     nb.setIsActive(1);
 
                     BalanceTrack saved = balanceTrackRepository.saveAndFlush(nb);
-                    System.out.println("DEBUG: Created balance row - AppFrom: " + saved.getAppFrom() +
+                    atLeastOneActiveRowCreated = true;
+
+                    System.out.println("DEBUG: Updated/Created balance row - AppFrom: " + saved.getAppFrom() +
                             ", AppTo: " + saved.getAppTo() + ", Count: " + saved.getAppAvblCnt() +
                             ", IsActive: " + saved.getIsActive());
                 }
             }
+        }
+
+        // FINAL CHECK: If no active balance rows were created, create a dummy active
+        // one with 0 balance
+        // This happens when everything received has been given away.
+        if (!atLeastOneActiveRowCreated) {
+            System.out.println("DEBUG: All stock distributed. Ensuring one active zero-balance row.");
+            BalanceTrack nb;
+            if (!reusePool.isEmpty()) {
+                nb = reusePool.poll();
+            } else {
+                nb = createNewBalanceTrack(empId, acYearId, typeId, createdBy);
+                nb.setAmount(amount);
+            }
+            nb.setAppAvblCnt(0);
+            nb.setAppFrom(0);
+            nb.setAppTo(0);
+            nb.setIsActive(1);
+            balanceTrackRepository.saveAndFlush(nb);
+        }
+
+        // DEACTIVATE REMAINING POOL (Clean up unused rows)
+        while (!reusePool.isEmpty()) {
+            BalanceTrack unused = reusePool.poll();
+            unused.setIsActive(0);
+            balanceTrackRepository.saveAndFlush(unused);
+            System.out.println("DEBUG: Deactivating unused old balance row ID: " + unused.getAppBalanceTrkId());
         }
 
         // Final flush

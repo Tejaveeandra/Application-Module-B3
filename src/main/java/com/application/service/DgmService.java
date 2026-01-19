@@ -1249,7 +1249,7 @@ public class DgmService {
         // CRITICAL: Clear persistence context
         distributionRepository.flush();
 
-        // 1. Get ALL Active Distributions RECEIVED by this user (what they hold)
+        // 1. Get ALL Active Distributions RECEIVED by this user
         List<Distribution> allReceived = distributionRepository.findActiveHoldingsForEmp(empId, acYearId);
 
         // 2. Filter by Amount
@@ -1258,10 +1258,7 @@ public class DgmService {
                 .sorted((d1, d2) -> Long.compare(d1.getAppStartNo(), d2.getAppStartNo()))
                 .toList();
 
-        System.out.println("DEBUG DGM: rebuildBalancesFromDistributions - Employee: " + empId
-                + ", Received Distributions: " + received.size());
-
-        // 3. Get ALL Distributions GIVEN AWAY by this user (what they distributed)
+        // 3. Get ALL Distributions GIVEN AWAY by this user
         List<Distribution> allGivenAway = distributionRepository.findByCreatedByAndYear(empId, acYearId);
 
         // 4. Filter given away by amount
@@ -1270,72 +1267,68 @@ public class DgmService {
                 .sorted((d1, d2) -> Long.compare(d1.getAppStartNo(), d2.getAppStartNo()))
                 .toList();
 
-        System.out.println("DEBUG DGM: rebuildBalancesFromDistributions - Employee: " + empId
-                + ", Given Away Distributions: " + givenAway.size());
-
-        // 5. Get CURRENT Active Balance Rows for this amount
+        // 5. Get CURRENT Active Balance Rows for Reuse
+        // REUSE STRATEGY: Instead of deactivating all, we keep them in a list/queue
         List<BalanceTrack> currentBalances = balanceTrackRepository.findActiveBalancesByEmpAndAmount(acYearId, empId,
                 amount);
+        // Use a LinkedList for easy removal/popping
+        java.util.LinkedList<BalanceTrack> reusePool = new java.util.LinkedList<>(currentBalances);
 
-        // 6. Deactivate old balance rows
-        for (BalanceTrack b : currentBalances) {
-            b.setIsActive(0);
-            balanceTrackRepository.saveAndFlush(b);
-        }
+        boolean atLeastOneActiveRowCreated = false;
 
-        // 7. Calculate remaining ranges by subtracting given away from received
+        // 7. Calculate remaining ranges
         if (received.isEmpty()) {
             System.out.println("WARNING DGM: No received distributions found for Employee " + empId + " with amount "
-                    + amount + ". Creating balance row with is_active = 0.");
-            // Create a balance track row with is_active = 0 to maintain history (do not
-            // delete)
-            BalanceTrack nb = createNewBalanceTrack(empId, acYearId, typeId, createdBy);
-            nb.setAmount(amount);
+                    + amount);
+            // We need a zero-balance active record
+            BalanceTrack nb;
+            if (!reusePool.isEmpty()) {
+                nb = reusePool.poll(); // Reuse existing
+            } else {
+                nb = createNewBalanceTrack(empId, acYearId, typeId, createdBy);
+                nb.setAmount(amount);
+            }
             nb.setAppFrom(0);
             nb.setAppTo(0);
             nb.setAppAvblCnt(0);
-            nb.setIsActive(0); // Set inactive instead of deleting
+            nb.setIsActive(1); // CORRECT: Keep it active
             balanceTrackRepository.saveAndFlush(nb);
-            System.out.println("DEBUG DGM: Created inactive balance row for employee " + empId + " with zero count");
+            atLeastOneActiveRowCreated = true;
         } else {
             for (Distribution receivedDist : received) {
                 int receivedStart = (int) receivedDist.getAppStartNo();
                 int receivedEnd = (int) receivedDist.getAppEndNo();
 
-                System.out
-                        .println("DEBUG DGM: Processing received distribution: " + receivedStart + " - " + receivedEnd);
-
-                // Find all given away ranges that overlap with this received range
+                // Find overlapping given away ranges
                 List<int[]> givenAwayRanges = new java.util.ArrayList<>();
                 for (Distribution given : givenAway) {
                     int givenStart = (int) given.getAppStartNo();
                     int givenEnd = (int) given.getAppEndNo();
-
-                    // Check if given away range overlaps with received range
                     if (givenStart <= receivedEnd && givenEnd >= receivedStart) {
-                        // Calculate overlap
                         int overlapStart = Math.max(givenStart, receivedStart);
                         int overlapEnd = Math.min(givenEnd, receivedEnd);
                         givenAwayRanges.add(new int[] { overlapStart, overlapEnd });
-                        System.out.println("DEBUG DGM: Found overlap - Given away: " + givenStart + "-" + givenEnd +
-                                ", Overlaps with received: " + overlapStart + "-" + overlapEnd);
                     }
                 }
 
-                // Calculate remaining ranges (received minus given away)
+                // Calculate remaining ranges
                 List<int[]> remainingRanges = calculateRemainingRanges(receivedStart, receivedEnd, givenAwayRanges);
 
-                // Create balance tracks for remaining ranges
+                // Create/Reuse balance tracks for remaining ranges
                 for (int[] range : remainingRanges) {
                     int remainingStart = range[0];
                     int remainingEnd = range[1];
                     int remainingCount = remainingEnd - remainingStart + 1;
 
-                    BalanceTrack nb = createNewBalanceTrack(empId, acYearId, typeId, createdBy);
-                    nb.setAmount(amount);
-                    nb.setAppAvblCnt(remainingCount);
+                    BalanceTrack nb;
+                    if (!reusePool.isEmpty()) {
+                        nb = reusePool.poll(); // Reuse
+                    } else {
+                        nb = createNewBalanceTrack(empId, acYearId, typeId, createdBy);
+                        nb.setAmount(amount);
+                    }
 
-                    // If available count is 0, set app_from = 0, app_to = 0, and is_active = 1
+                    nb.setAppAvblCnt(remainingCount);
                     if (remainingCount <= 0) {
                         nb.setAppFrom(0);
                         nb.setAppTo(0);
@@ -1343,15 +1336,41 @@ public class DgmService {
                         nb.setAppFrom(remainingStart);
                         nb.setAppTo(remainingEnd);
                     }
-                    // Keep is_active = 1 even when available count is 0 (show as available 0)
                     nb.setIsActive(1);
 
-                    BalanceTrack saved = balanceTrackRepository.saveAndFlush(nb);
-                    System.out.println("DEBUG DGM: Created balance row - AppFrom: " + saved.getAppFrom() +
-                            ", AppTo: " + saved.getAppTo() + ", Count: " + saved.getAppAvblCnt() +
-                            ", IsActive: " + saved.getIsActive());
+                    balanceTrackRepository.saveAndFlush(nb);
+                    atLeastOneActiveRowCreated = true;
+
+                    System.out.println("DEBUG DGM: Updated/Created balance row - ID: " + nb.getAppBalanceTrkId() +
+                            ", Range: " + nb.getAppFrom() + "-" + nb.getAppTo());
                 }
             }
+        }
+
+        // FINAL CHECK: If after processing everything, we have NO active rows (all
+        // stock given away)
+        if (!atLeastOneActiveRowCreated) {
+            System.out.println("DEBUG DGM: All stock distributed. Ensuring one active zero-balance row.");
+            BalanceTrack nb;
+            if (!reusePool.isEmpty()) {
+                nb = reusePool.poll();
+            } else {
+                nb = createNewBalanceTrack(empId, acYearId, typeId, createdBy);
+                nb.setAmount(amount);
+            }
+            nb.setAppAvblCnt(0);
+            nb.setAppFrom(0);
+            nb.setAppTo(0);
+            nb.setIsActive(1);
+            balanceTrackRepository.saveAndFlush(nb);
+        }
+
+        // DEACTIVATE REMAINING POOL (Clean up unused rows)
+        while (!reusePool.isEmpty()) {
+            BalanceTrack unused = reusePool.poll();
+            unused.setIsActive(0);
+            balanceTrackRepository.saveAndFlush(unused);
+            System.out.println("DEBUG DGM: Deactivating unused old balance row ID: " + unused.getAppBalanceTrkId());
         }
 
         // Final flush
