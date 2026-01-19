@@ -1,5 +1,5 @@
 package com.application.service;
- 
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -15,21 +15,22 @@ import com.application.exception.ZoneIdRequiredException;
 import com.application.repository.AppStatusTrackViewRepository;
 import com.application.repository.CampusRepository;
 import com.application.repository.SCEmployeeRepository;
- 
+
 @Service
 public class ApplicationStatusViewService {
- 
+
     @Autowired
     private AppStatusTrackViewRepository appStatusTrackViewRepository;
-    @Autowired private CampusRepository campusRepository;
+    @Autowired
+    private CampusRepository campusRepository;
     @Autowired
     private SCEmployeeRepository scEmployeeRepository;
 
-//    @Cacheable(value = "appStatusByCampus", key = "#cmpsId")
+    // @Cacheable(value = "appStatusByCampus", key = "#cmpsId")
     public List<AppStatusTrackView> getApplicationStatusByCampus(int cmpsId) {
         return appStatusTrackViewRepository.findByCmps_id(cmpsId);
     }
-    
+
     public List<AppStatusTrackView> getApplicationStatusByEmployeeCampus(int empId) {
         try {
             List<AppStatusTrackView> result = appStatusTrackViewRepository.findByEmployeeCampus(empId);
@@ -38,7 +39,7 @@ public class ApplicationStatusViewService {
             throw e;
         }
     }
-    
+
     public List<AppStatusTrackView> getApplicationStatusByRole(int empId, String category) {
         // 1. Fetch Employee
         SCEmployeeEntity employee = scEmployeeRepository.findById(empId)
@@ -52,99 +53,124 @@ public class ApplicationStatusViewService {
         System.out.println("Input Category Param: '" + category + "'");
 
         // 2. Normalize Role (Handle nulls and Case)
-        String role = (employee.getEmpStudApplicationRole() != null) 
-                      ? employee.getEmpStudApplicationRole().trim().toUpperCase() 
-                      : "";
+        String role = (employee.getEmpStudApplicationRole() != null)
+                ? employee.getEmpStudApplicationRole().trim().toUpperCase()
+                : "";
 
         System.out.println("Normalized Role for Switch: '" + role + "'");
 
         // 3. Switch Logic
+        // Determine Business ID if category is provided
+        Integer businessId = null;
+        if (category != null) {
+            if (category.equalsIgnoreCase("school")) {
+                businessId = 2;
+            } else if (category.equalsIgnoreCase("college")) {
+                businessId = 1;
+            }
+        }
+
         switch (role) {
-        case "ADMIN":
-            // Returns all (filtered by category if provided)
-            return appStatusTrackViewRepository.findAllByCategory(category);
+            case "ADMIN":
+                // Returns all (filtered by category if provided)
+                if (businessId != null) {
+                    return appStatusTrackViewRepository.findAllByBusinessId(businessId);
+                }
+                return appStatusTrackViewRepository.findAllByCategory(category);
 
-        case "ZONAL ACCOUNTANT":
-            return appStatusTrackViewRepository.findByZone_id(employee.getZoneId());
+            case "ZONAL ACCOUNTANT":
+                if (businessId != null) {
+                    return appStatusTrackViewRepository.findByZone_idAndBusinessId(employee.getZoneId(), businessId);
+                }
+                return appStatusTrackViewRepository.findByZone_id(employee.getZoneId());
 
-        case "DGM":
-            return appStatusTrackViewRepository.findByDgm_emp_id(empId);
+            case "DGM":
+                if (businessId != null) {
+                    return appStatusTrackViewRepository.findByDgm_emp_idAndBusinessId(empId, businessId);
+                }
+                return appStatusTrackViewRepository.findByDgm_emp_id(empId);
 
-        case "CAMPUS": 
-            return appStatusTrackViewRepository.findByCmps_id(employee.getEmpCampusId());
-            
-        case "PRO":
-            System.out.println("Matched Case: PRO - Expanding visibility to campus-wide data");
-            // Expand visibility: Show all applications for the PRO's assigned campus
-            return appStatusTrackViewRepository.findByCmps_id(employee.getEmpCampusId());
-            
-        default:
-            System.out.println("!! NO MATCH FOUND !! Role: " + role);
-            return new ArrayList<>();
+            case "CAMPUS":
+                if (businessId != null) {
+                    return appStatusTrackViewRepository.findByCmps_idAndBusinessId(employee.getEmpCampusId(),
+                            businessId);
+                }
+                return appStatusTrackViewRepository.findByCmps_id(employee.getEmpCampusId());
+
+            case "PRO":
+                System.out.println("Matched Case: PRO - Expanding visibility to campus-wide data");
+                // Expand visibility: Show all applications for the PRO's assigned campus
+                if (businessId != null) {
+                    return appStatusTrackViewRepository.findByCmps_idAndBusinessId(employee.getEmpCampusId(),
+                            businessId);
+                }
+                return appStatusTrackViewRepository.findByCmps_id(employee.getEmpCampusId());
+
+            default:
+                System.out.println("!! NO MATCH FOUND !! Role: " + role);
+                return new ArrayList<>();
+        }
     }
-    }
-    
+
     @Cacheable(value = "allstatustable")
     public List<AppStatusDTO> getStatusByCategory(String category) {
         // category will be "school" or "college"
         return appStatusTrackViewRepository.getStatusDataByCategory(category);
     }
+
     public List<AppStatusDTO> fetchApplicationStatus(String category, Integer zoneId) {
-    	 
+
         List<Campus> campuses;
- 
+
         // --------------------------------------------
-        // CATEGORY = SCHOOL  → businessId = 2
+        // CATEGORY = SCHOOL → businessId = 2
         // zoneId is mandatory for SCHOOL
         // --------------------------------------------
         if (category.equalsIgnoreCase("school")) {
             int businessId = 2;
- 
+
             if (zoneId == null) {
                 throw new ZoneIdRequiredException("Zone ID must be provided for SCHOOL category");
             }
- 
+
             campuses = campusRepository.findSchoolCampusesByZone(businessId, zoneId);
         }
- 
+
         // --------------------------------------------
-        // CATEGORY = COLLEGE  → businessId = 1
+        // CATEGORY = COLLEGE → businessId = 1
         // zoneId is optional
         // --------------------------------------------
         else if (category.equalsIgnoreCase("college")) {
             int businessId = 1;
- 
+
             if (zoneId != null) {
                 campuses = campusRepository.findCollegeCampusesByZone(businessId, zoneId);
             } else {
                 campuses = campusRepository.findCollegeCampuses(businessId);
             }
         }
- 
+
         // --------------------------------------------
         // INVALID CATEGORY
         // --------------------------------------------
         else {
             campuses = campusRepository.findAll();
         }
- 
+
         // Extract campus IDs
         List<Integer> campusIds = campuses.stream()
                 .map(Campus::getCampusId)
                 .toList();
- 
+
         if (campusIds.isEmpty()) {
             return List.of();
         }
- 
+
         return appStatusTrackViewRepository.findDTOByCampusIds(campusIds);
     }
-    
-    
+
     public List<AppStatusTrackView> getAllLatestStatus() {
         return appStatusTrackViewRepository.findAllLatest();
     }
 
- 
- 
 }
