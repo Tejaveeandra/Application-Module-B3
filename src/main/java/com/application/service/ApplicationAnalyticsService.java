@@ -2530,9 +2530,7 @@ public class ApplicationAnalyticsService {
                         (yearId) -> {
                             // Get AppStatusTrack metrics with app_issued_type_id = 3 (DGM level: for
                             // appIssued, appAvailable, filtered by campusIds and zoneId)
-                            // NOTE: totalApp from AppStatusTrack is NOT used - Distribution table is used
-                            // instead
-                            // This query is used only for appAvailable and appIssued metrics
+                            // NOTE: totalApp from AppStatusTrack (Type 3) captures Zone-to-DGM and Admin-to-DGM flows
                             MetricsAggregateDTO statusMetrics = appStatusTrackRepository
                                     .getMetricsByCampusIdsAndYearForDgm(campusIds, zoneId, yearId)
                                     .orElse(new MetricsAggregateDTO());
@@ -2542,11 +2540,6 @@ public class ApplicationAnalyticsService {
                                     .getSoldConfirmedUnavailableDamagedByCampusIdsAndYearForDgm(campusIds, zoneId,
                                             yearId)
                                     .orElse(new MetricsAggregateDTO());
-                            // Get admin-to-DGM distribution count (Admin→DGM: issued_by_type_id = 1,
-                            // issued_to_type_id = 3, filtered by DGM empId)
-                            Integer adminToDgmDist = distributionRepository
-                                    .sumAdminToDgmDistributionByEmpIdAndYear(empIdInt, yearId)
-                                    .orElse(0);
                             // Get admin-to-campus distribution count (Admin→Campus: issued_by_type_id = 1,
                             // issued_to_type_id = 4, filtered by campusIds)
                             Integer adminToCampusDist = distributionRepository
@@ -2572,45 +2565,36 @@ public class ApplicationAnalyticsService {
                             System.out.println("   app_available: " + statusMetrics.appAvailable());
                             System.out.println("   app_issued: " + statusMetrics.appIssued());
                             System.out.println("   totalApp: " + statusMetrics.totalApp()
-                                    + " (NOT used for final total - Distribution table used instead)");
+                                    + " (USED for final total - captures Zone-to-DGM & Admin-to-DGM flows)");
                             System.out.println("----------------------------------------");
-                            System.out.println("📦 DISTRIBUTION TABLE COUNTS (for Total Applications):");
-                            System.out.println("   Admin → DGM: " + adminToDgmDist
-                                    + " (issued_to_type_id = 3, ADDED to totalApp)");
+                            System.out.println("📦 DISTRIBUTION TABLE COUNTS (for Direct Campus Distributions):");
                             System.out.println("   Admin → Campus: " + adminToCampusDist
                                     + " (issued_to_type_id = 4, ADDED to totalApp)");
                             System.out.println("   Zone → Campus: " + zoneToCampusDist
                                     + " (issued_to_type_id = 4, ADDED to totalApp)");
                             System.out.println("----------------------------------------");
 
-                            // For DGM: Since app_issued_type_id = 3 doesn't exist in AppStatusTrack, use
-                            // Distribution table as PRIMARY source
-                            // Calculate totalApp ONLY from Distribution table: Admin→DGM + Admin→Campus +
-                            // Zone→Campus
-                            // Do NOT add AppStatusTrack.totalApp to avoid double-counting (AppStatusTrack
-                            // type 4 already reflects Admin→Campus distributions)
-                            long finalTotalApp = adminToDgmDist + adminToCampusDist + zoneToCampusDist;
+                            // For DGM Flow (Zone-to-DGM & Admin-to-DGM): Use AppStatusTrack (Type 3)
+                            // For Direct Campus Flow (Admin-to-Campus & Zone-to-Campus): Use Distribution table
+                            long finalTotalApp = statusMetrics.totalApp() + adminToCampusDist + zoneToCampusDist;
 
                             System.out.println("✅ FINAL DGM CALCULATION:");
-                            System.out.println(
-                                    "   Total Applications (from Distribution table ONLY - app_issued_type_id = 3 not in AppStatusTrack):");
-                            System.out.println("     - Admin → DGM Distribution: " + adminToDgmDist
-                                    + " (issued_to_type_id = 3, from Distribution table)");
-                            System.out.println("     - Admin → Campus Distribution: " + adminToCampusDist
+                            System.out.println("   Total Applications (Hybrid: AppStatusTrack Type 3 + Distribution):");
+                            System.out.println("     - From AppStatusTrack (Type 3 - Zone-to-DGM & Admin-to-DGM): "
+                                    + statusMetrics.totalApp());
+                            System.out.println("     - Admin → Campus Distribution (Direct): " + adminToCampusDist
                                     + " (issued_to_type_id = 4, from Distribution table)");
-                            System.out.println("     - Zone → Campus Distribution: " + zoneToCampusDist
+                            System.out.println("     - Zone → Campus Distribution (Direct): " + zoneToCampusDist
                                     + " (issued_to_type_id = 4, from Distribution table)");
                             System.out.println("     - TOTAL APPLICATIONS: " + finalTotalApp);
-                            System.out.println("   Note: AppStatusTrack totalApp (" + statusMetrics.totalApp()
-                                    + ") NOT added to avoid double-counting");
                             System.out.println(
                                     "   Available (from AppStatusTrack, Type 3): " + statusMetrics.appAvailable());
                             System.out.println("   Issued (from AppStatusTrack, Type 3): " + statusMetrics.appIssued());
                             System.out.println("========================================");
 
                             return Optional.of(new MetricsAggregateDTO(
-                                    finalTotalApp, // Admin→DGM + Admin→Campus + Zone→Campus distributions (ONLY from
-                                                   // Distribution table, NOT AppStatusTrack to avoid double-counting)
+                                    finalTotalApp, // Hybrid: AppStatusTrack Type 3 (Zone-to-DGM & Admin-to-DGM) +
+                                                   // Distribution table (Admin-to-Campus & Zone-to-Campus)
                                     proMetrics.appSold(), // From app_issued_type_id = 4
                                     proMetrics.appConfirmed(), // From app_issued_type_id = 4
                                     statusMetrics.appAvailable(), // From app_issued_type_id = 3, campus_id IN campusIds
