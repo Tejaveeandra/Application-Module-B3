@@ -61,76 +61,116 @@ public class UserAppSoldService {
 	}
 
 	public List<RateResponseDTO> getAllRateData(String campusCategory, Integer empId) {
-	    System.out.println("--- LOG: STARTING RATE CALCULATION FOR EMP_ID: " + empId + " ---");
- 
-	    List<Integer> dgmIds = null;
-	    List<Integer> campusIds = null;
- 
-	    // 1. Determine User Role and Fetch Filter IDs
-	    if (empId != null && empId != 0) {
-	        SCEmployeeEntity employee = scEmployeeRepository.findById(empId).orElse(null);
- 
-	        if (employee != null) {
-	            String role = employee.getEmpStudApplicationRole();
-	            System.out.println("User Role: " + role);
- 
-	            // LOGIC: IF ZONE -> Filter DGMs
-	            if ("ZONE".equalsIgnoreCase(role) || "ZONAL_OFFICER".equalsIgnoreCase(role)) {
-	                // Fetch the Zone ID from the employee view
-	                int zoneId = employee.getZoneId();
-	                // Get all DGMs under this Zone
-	                dgmIds = userAppSoldRepository.findDgmIdsByZoneId(zoneId);
-	                System.out.println("Zone Logged In (" + zoneId + "). Fetched DGM IDs: " + dgmIds);
-	            }
-	            // LOGIC: IF DGM -> Filter Campuses
-	            else if ("DGM".equalsIgnoreCase(role) || "DIVISIONAL_OFFICER".equalsIgnoreCase(role)) {
-	                // Get all Campuses under this DGM
-	                campusIds = userAppSoldRepository.findCampusIdsByDgmId(empId);
-	                System.out.println("DGM Logged In (" + empId + "). Fetched Campus IDs: " + campusIds);
-	            }
-	        }
-	    }
- 
-	    // 2. Pass the calculated IDs to the core logic
-	    return calculateRateDataInternal(campusCategory, dgmIds, campusIds);
+		System.out.println("--- LOG: STARTING RATE CALCULATION FOR EMP_ID: " + empId + " ---");
+
+		List<Integer> dgmIds = null;
+		List<Integer> campusIds = null;
+		String userRole = null;
+
+		// 1. Determine User Role and Fetch Filter IDs
+		if (empId != null && empId != 0) {
+			SCEmployeeEntity employee = scEmployeeRepository.findById(empId).orElse(null);
+
+			if (employee != null) {
+				userRole = employee.getEmpStudApplicationRole();
+				System.out.println("User Role: " + userRole);
+
+				// LOGIC: IF ZONE -> Filter DGMs
+				if ("ZONAL ACCOUNTANT".equalsIgnoreCase(userRole) || "ZONE".equalsIgnoreCase(userRole)
+						|| "ZONAL_OFFICER".equalsIgnoreCase(userRole)) {
+					// Fetch the Zone ID from the employee view
+					int zoneId = employee.getZoneId();
+					// Get all DGMs under this Zone
+					dgmIds = userAppSoldRepository.findDgmIdsByZoneId(zoneId);
+					System.out.println("Zone Logged In (" + zoneId + "). Fetched DGM IDs: " + dgmIds);
+				}
+				// LOGIC: IF DGM -> Filter Campuses
+				else if ("DGM".equalsIgnoreCase(userRole) || "DIVISIONAL_OFFICER".equalsIgnoreCase(userRole)) {
+					// Get all Campuses under this DGM
+					campusIds = userAppSoldRepository.findCampusIdsByDgmId(empId);
+					System.out.println("DGM Logged In (" + empId + "). Fetched Campus IDs: " + campusIds);
+				}
+			}
+		}
+
+		// 2. Pass the calculated IDs and Role to the core logic
+		// Determine visibility based on role
+		boolean showZone = true;
+		boolean showDgm = true;
+		boolean showCampus = true;
+
+		if (empId != null && empId != 0) {
+			// Utilize the userRole determined above
+			if (userRole != null) {
+				if ("ZONAL ACCOUNTANT".equalsIgnoreCase(userRole) || "ZONE".equalsIgnoreCase(userRole)
+						|| "ZONAL_OFFICER".equalsIgnoreCase(userRole)) {
+					showZone = false; // Zonal Accountant/Officer: DGMs + Campuses
+					showDgm = true;
+					showCampus = true;
+				} else if ("DGM".equalsIgnoreCase(userRole) || "DIVISIONAL_OFFICER".equalsIgnoreCase(userRole)) {
+					showZone = false; // DGM/Divisional Officer: Campuses only
+					showDgm = false;
+					showCampus = true;
+				}
+			}
+		}
+
+		return calculateRateDataInternal(campusCategory, dgmIds, campusIds, showZone, showDgm, showCampus);
 	}
 
-	private List<RateResponseDTO> calculateRateDataInternal(String campusCategory, List<Integer> dgmIds, List<Integer> campusIds) {
-	    String category = (campusCategory != null && !campusCategory.trim().isEmpty()) ? campusCategory.trim() : null;
-	    List<RateResponseDTO> responseList = new ArrayList<>();
- 
-	    // --- 1. ZONES (Always Global / Category based) ---
-	    List<Object[]> zoneRaw = (category != null)
-	        ? userAppSoldRepository.findZonePerformanceNativeByCategory(category)
-	        : userAppSoldRepository.findZonePerformanceNative();
-	        
-	    responseList.add(processAnalytics("zone", "DISTRIBUTE_ZONE", "Application Drop Rated Zone Wise", "Application Top Rated Zone Wise", mapToPerformanceDTO(zoneRaw)));
- 
-	    // --- 2. DGMS (Filtered if Zone Logged In) ---
-	    List<Object[]> dgmRaw;
-	    if (dgmIds != null && !dgmIds.isEmpty()) {
-	        dgmRaw = userAppSoldRepository.findDgmPerformanceForZone(dgmIds);
-	    } else {
-	        dgmRaw = (category != null)
-	            ? userAppSoldRepository.findDgmPerformanceNativeByCategory(category)
-	            : userAppSoldRepository.findDgmPerformanceNative();
-	    }
-	    responseList.add(processAnalytics("dgm", "DISTRIBUTE_DGM", "Application Drop Rated DGM Wise", "Application Top Rated DGM Wise", mapToPerformanceDTO(dgmRaw)));
- 
-	    // --- 3. CAMPUSES (Filtered if DGM Logged In) ---
-	    List<Object[]> campusRaw;
-	    if (campusIds != null && !campusIds.isEmpty()) {
-	        campusRaw = userAppSoldRepository.findCampusPerformanceForDgm(campusIds);
-	    } else {
-	        campusRaw = (category != null)
-	            ? userAppSoldRepository.findCampusPerformanceNativeByCategory(category)
-	            : userAppSoldRepository.findCampusPerformanceNative();
-	    }
-	    responseList.add(processAnalytics("campus", "DISTRIBUTE_CAMPUS", "Application Drop Rated Campus Wise", "Application Top Rated Campus Wise", mapToPerformanceDTO(campusRaw)));
- 
-	    return responseList;
+	private List<RateResponseDTO> calculateRateDataInternal(
+			String campusCategory,
+			List<Integer> dgmIds,
+			List<Integer> campusIds,
+			boolean showZone,
+			boolean showDgm,
+			boolean showCampus) {
+
+		String category = (campusCategory != null && !campusCategory.trim().isEmpty()) ? campusCategory.trim() : null;
+		List<RateResponseDTO> responseList = new ArrayList<>();
+
+		// --- 1. ZONES (Always Global / Category based) ---
+		if (showZone) {
+			List<Object[]> zoneRaw = (category != null)
+					? userAppSoldRepository.findZonePerformanceNativeByCategory(category)
+					: userAppSoldRepository.findZonePerformanceNative();
+
+			responseList.add(processAnalytics("zone", "DISTRIBUTE_ZONE", "Application Drop Rated Zone Wise",
+					"Application Top Rated Zone Wise", mapToPerformanceDTO(zoneRaw)));
+		}
+
+		// --- 2. DGMS (Filtered if Zone Logged In) ---
+		if (showDgm) {
+			List<Object[]> dgmRaw;
+			if (dgmIds != null && !dgmIds.isEmpty()) {
+				dgmRaw = userAppSoldRepository.findDgmPerformanceForZone(dgmIds);
+			} else {
+				// If filtering by IDs is NOT requested but showDgm IS true (e.g. Admin), fetch
+				// all
+				dgmRaw = (category != null)
+						? userAppSoldRepository.findDgmPerformanceNativeByCategory(category)
+						: userAppSoldRepository.findDgmPerformanceNative();
+			}
+			responseList.add(processAnalytics("dgm", "DISTRIBUTE_DGM", "Application Drop Rated DGM Wise",
+					"Application Top Rated DGM Wise", mapToPerformanceDTO(dgmRaw)));
+		}
+
+		// --- 3. CAMPUSES (Filtered if DGM Logged In) ---
+		if (showCampus) {
+			List<Object[]> campusRaw;
+			if (campusIds != null && !campusIds.isEmpty()) {
+				campusRaw = userAppSoldRepository.findCampusPerformanceForDgm(campusIds);
+			} else {
+				campusRaw = (category != null)
+						? userAppSoldRepository.findCampusPerformanceNativeByCategory(category)
+						: userAppSoldRepository.findCampusPerformanceNative();
+			}
+			responseList.add(processAnalytics("campus", "DISTRIBUTE_CAMPUS", "Application Drop Rated Campus Wise",
+					"Application Top Rated Campus Wise", mapToPerformanceDTO(campusRaw)));
+		}
+
+		return responseList;
 	}
- 
 
 	// --- Helper to convert Native Query Object[] to DTO ---
 	private List<PerformanceDTO> mapToPerformanceDTO(List<Object[]> rawData) {
@@ -329,51 +369,46 @@ public class UserAppSoldService {
 		return processAnalytics("campus", "DGM_CAMPUS", "Application Drop Rate Campus Wise", "Top Rated Campuses",
 				performanceList);
 	}
-	
-	
+
 	public String getRole(Integer empId) {
-	    SCEmployeeEntity emp = scEmployeeRepository.findByEmpId(empId)
-	            .stream()
-	            .findFirst()
-	            .orElse(null);
+		SCEmployeeEntity emp = scEmployeeRepository.findByEmpId(empId)
+				.stream()
+				.findFirst()
+				.orElse(null);
 
-	    if (emp == null || emp.getEmpStudApplicationRole() == null) {
-	        return null;
-	    }
+		if (emp == null || emp.getEmpStudApplicationRole() == null) {
+			return null;
+		}
 
-	    return emp.getEmpStudApplicationRole().trim().toUpperCase();
+		return emp.getEmpStudApplicationRole().trim().toUpperCase();
 	}
 
-	
-public RateResponseDTO getRoleBasedPerformance(Integer empId) {
+	public RateResponseDTO getRoleBasedPerformance(Integer empId) {
 
-    String role = getRole(empId);
+		String role = getRole(empId);
 
-    if (role == null) {
-        throw new RuntimeException("Employee role not found");
-    }
+		if (role == null) {
+			throw new RuntimeException("Employee role not found");
+		}
 
-    switch (role) {
+		switch (role) {
 
-        case "ZONAL ACCOUNTANT":
-            System.out.println("LOGGED ROLE = ZONAL ACCOUNTANT");
-            return getZoneAccountantPerformance(empId);
+			case "ZONAL ACCOUNTANT":
+				System.out.println("LOGGED ROLE = ZONAL ACCOUNTANT");
+				return getZoneAccountantPerformance(empId);
 
-        case "DGM":
-            System.out.println("LOGGED ROLE = DGM");
-            return getDgmPerformance(empId);
+			case "DGM":
+				System.out.println("LOGGED ROLE = DGM");
+				return getDgmPerformance(empId);
 
-        default:
-            System.out.println("LOGGED ROLE = NOT SUPPORTED");
-            return new RateResponseDTO(
-                    role,
-                    "NO_PERMISSION",
-                    null,
-                    null
-            );
-    }
-}
-
-
+			default:
+				System.out.println("LOGGED ROLE = NOT SUPPORTED");
+				return new RateResponseDTO(
+						role,
+						"NO_PERMISSION",
+						null,
+						null);
+		}
+	}
 
 }
