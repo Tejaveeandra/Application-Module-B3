@@ -1281,7 +1281,17 @@ public class ApplicationFastSale {
 			item.setProAmount(pc.getConc_amount() != null ? pc.getConc_amount().floatValue() : null);
 
 			// PRO reason (free text)
-			item.setProReason(pc.getReason());
+			if (pc.getReason() != null && !pc.getReason().trim().isEmpty()) {
+				String rawReason = pc.getReason().trim();
+				try {
+					int reasonId = Integer.parseInt(rawReason);
+					concessionReasonRepository.findById(reasonId)
+							.ifPresentOrElse(r -> item.setProReason(r.getConc_reason()),
+									() -> item.setProReason(rawReason));
+				} catch (NumberFormatException ex) {
+					item.setProReason(rawReason);
+				}
+			}
 
 			// Given By (Employee)
 			if (pc.getEmployee() != null) {
@@ -1658,6 +1668,19 @@ public class ApplicationFastSale {
 						new StudentConcessionType());
 				conc.setStudAdmsId(updatedAcademicDetails.getStud_adms_id());
 				conc.setAcademicYear(year);
+
+				if (conc.getStud_conc_detls_id() == 0) {
+					if (c.getCreatedBy() != null) {
+						conc.setCreated_by(c.getCreatedBy());
+					}
+					if (conc.getCreated_Date() == null) {
+						if (c.getCreatedDate() != null) {
+							conc.setCreated_Date(c.getCreatedDate());
+						} else {
+							conc.setCreated_Date(LocalDateTime.now());
+						}
+					}
+				}
 
 				if (c.getConcessionTypeId() != null && c.getConcessionTypeId() > 0)
 					concessionTypeRepository.findById(c.getConcessionTypeId()).ifPresent(conc::setConcessionType);

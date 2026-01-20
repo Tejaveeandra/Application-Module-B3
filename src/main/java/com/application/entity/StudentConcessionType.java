@@ -9,6 +9,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -29,6 +30,7 @@ public class StudentConcessionType {
 	private float conc_amount;
 	private int conc_issued_by;
 	private int conc_authorised_by;
+	@Column(name = "created_date")
 	private LocalDateTime created_Date;
 	private int created_by;
 	private String comments;

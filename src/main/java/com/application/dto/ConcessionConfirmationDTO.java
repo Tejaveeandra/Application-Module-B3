@@ -1,6 +1,8 @@
 // 3. NEW FILE (ConcessionConfirmationDTO.java) - PLEASE CREATE THIS
 package com.application.dto;
 
+import java.time.LocalDateTime;
+
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -14,6 +16,7 @@ public class ConcessionConfirmationDTO {
     private Integer reasonId;
     private String comments;
     private Integer createdBy;
+    private LocalDateTime createdDate;
     private Integer concReferedBy;
     private Integer proConcessionAmount;
     private String proConcessionReason;
