@@ -51,9 +51,44 @@ public class AdminDashboardService {
  
     public DashboardResponseDTO getDashboardData(Integer employeeId) {
        
-        // Get current year (latest year) from AdminApp for this specific employee
-        // This ensures we get the year where the employee actually has allocations
-        Integer currentYearId = adminAppRepository.findLatestYearIdByEmployee(employeeId);
+        // Get current academic year from AcademicYear table (not MAX year from AdminApp)
+        // Current year is determined by: current calendar year - 1
+        // This ensures we use the actual current year, not a future year
+        int currentCalendarYear = java.time.Year.now().getValue();
+        int currentAcademicYearValue = currentCalendarYear - 1;
+        
+        // Find the current academic year entity
+        java.util.Optional<AcademicYear> currentYearEntityOpt = academicYearRepository
+                .findByYearAndIsActive(currentAcademicYearValue, 1);
+        
+        Integer currentYearId = null;
+        Integer actualCurrentYearId = null;
+        
+        if (currentYearEntityOpt.isPresent()) {
+            // Store the actual current academic year ID
+            actualCurrentYearId = currentYearEntityOpt.get().getAcdcYearId();
+            
+            // Verify that this employee has data for the current year
+            Long currentYearTotal = adminAppRepository.sumTotalAppByEmployeeAndAcademicYear(employeeId, actualCurrentYearId);
+            if (currentYearTotal != null && currentYearTotal > 0) {
+                // Employee has data for current year, use it
+                currentYearId = actualCurrentYearId;
+            } else {
+                // If no data for current year, fall back to latest year where employee has data
+                // But only consider years up to the current year (not future years)
+                Integer latestYearId = adminAppRepository.findLatestYearIdByEmployee(employeeId);
+                if (latestYearId != null && latestYearId <= actualCurrentYearId) {
+                    // Use the latest year if it's not in the future
+                    currentYearId = latestYearId;
+                } else {
+                    // If latest year is in the future, use current year instead
+                    currentYearId = actualCurrentYearId;
+                }
+            }
+        } else {
+            // If current year not found in AcademicYear table, fall back to latest year from AdminApp
+            currentYearId = adminAppRepository.findLatestYearIdByEmployee(employeeId);
+        }
         
         // If no year found for this employee, try to get latest year from AdminApp in general
         if (currentYearId == null) {
