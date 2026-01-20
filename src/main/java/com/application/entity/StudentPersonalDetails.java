@@ -2,6 +2,9 @@ package com.application.entity;
 
 import java.util.Date;
 
+import org.hibernate.annotations.DynamicInsert;
+import org.hibernate.annotations.DynamicUpdate;
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -17,25 +20,24 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
+@DynamicInsert
+@DynamicUpdate
 @Table(name="sce_stud_personal_detls" , schema = "sce_student")
 public class StudentPersonalDetails {
 	
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
-	private int stud_personal_id;
-//	private String father_name;
-//	private String mother_name;
-//	private Long parent_mobile_no;
-//	private String parent_mail;
+	private Integer stud_personal_id;
 	private Long stud_aadhaar_no;
-//	private String occupation;
-	private int is_active;
-	private int created_by;
+	private Integer is_active;
+	private Integer created_by;
+
+	@Column(name = "created_date", insertable = false, updatable = false)
+    private Date created_date;
+
+    private Integer updated_by;
+    private Date updated_date;
 	private Date dob;
-//	private String mail;
-//	private int mail_is_verified;
-//	private int caste_id;
-//	private int religion_id;
 	
 	@ManyToOne
 	@JoinColumn(name = "food_type_id")
