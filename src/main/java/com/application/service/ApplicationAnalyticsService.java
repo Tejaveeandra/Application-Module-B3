@@ -3998,10 +3998,12 @@ public class ApplicationAnalyticsService {
     /**
      * Get Current, Next, and Previous Two Academic Years
      * Returns academic year ID and academic year string for each
-     * Current year is determined by finding academic year where year field =
-     * current calendar year - 1
-     * (e.g., if calendar year is 2026, current academic year is "2025-26" where
-     * year=2025)
+
+    * Current year transitions on March 1st:
+     * - Before March 1st: current academic year = (current calendar year - 1)
+     *   Example: Feb 28, 2026 → academic year 2025-26 (year = 2025)
+     * - On/After March 1st: current academic year = current calendar year
+     *   Example: March 1, 2026 → academic year 2026-27 (year = 2026)
      * Then uses that academic year's year field to calculate next and previous
      * years
      * All queries filter by is_active = 1
@@ -4011,23 +4013,26 @@ public class ApplicationAnalyticsService {
      */
     public AcademicYearInfoDTO getAcademicYearInfo() {
         // Get current calendar year (e.g., 2026)
-        int currentCalendarYear = java.time.Year.now().getValue();
-        // Current academic year is typically the one that started in the previous
-        // calendar year
-        // (e.g., if calendar year is 2026, current academic year is "2025-26" where
-        // year=2025)
-        int currentAcademicYearValue = currentCalendarYear - 1;
+        // Academic year transitions on March 1st:
+        // - Before March 1st: current academic year = (current calendar year - 1)
+        //   Example: Feb 28, 2026 → academic year 2025-26 (year = 2025)
+        // - On/After March 1st: current academic year = current calendar year
+        //   Example: March 1, 2026 → academic year 2026-27 (year = 2026)
+        java.time.LocalDate today = java.time.LocalDate.now();
+        int currentCalendarYear = today.getYear();
+        int currentMonth = today.getMonthValue();
+        int currentAcademicYearValue = (currentMonth >= 3) ? currentCalendarYear : (currentCalendarYear - 1);
         System.out.println("========================================");
         System.out.println("ACADEMIC YEAR INFO CALCULATION");
         System.out.println("Current Calendar Year: " + currentCalendarYear);
+        System.out.println("Current Month: " + currentMonth);
         System.out.println(
-                "Finding academic year where year field = " + currentAcademicYearValue + " (calendar year - 1)");
+                "Finding academic year where year field = " + currentAcademicYearValue + 
+                (currentMonth >= 3 ? " (on/after March 1st)" : " (before March 1st)"));
         System.out.println("========================================");
 
-        // Find academic year where year field = current calendar year - 1 (filtered by
-        // is_active = 1)
-        // This gives us the current academic year (e.g., if calendar is 2026, year=2025
-        // → "2025-26")
+        // Find academic year where year field matches the calculated current academic year
+        // (filtered by is_active = 1)
         Optional<AcademicYear> currentYearEntityOpt = academicYearRepository
                 .findByYearAndIsActive(currentAcademicYearValue, 1);
 

@@ -165,8 +165,8 @@ public class UserAppSoldService {
 						? userAppSoldRepository.findCampusPerformanceNativeByCategory(category)
 						: userAppSoldRepository.findCampusPerformanceNative();
 			}
-			responseList.add(processAnalytics("campus", "DISTRIBUTE_CAMPUS", "Application Drop Rated Campus Wise",
-					"Application Top Rated Campus Wise", mapToPerformanceDTO(campusRaw)));
+			responseList.add(processAnalytics("campus", "DISTRIBUTE_CAMPUS", "Application Drop Rated Branch Wise",
+					"Application Top Rated Branch Wise", mapToPerformanceDTO(campusRaw)));
 		}
 
 		return responseList;
@@ -366,7 +366,7 @@ public class UserAppSoldService {
 		List<PerformanceDTO> performanceList = mapToPerformanceDTO(raw);
 
 		// 5️⃣ Apply Top/Drop logic
-		return processAnalytics("campus", "DGM_CAMPUS", "Application Drop Rate Campus Wise", "Top Rated Campuses",
+		return processAnalytics("campus", "DGM_CAMPUS", "Application Drop Rate Branch Wise", "Application Top Rate Branch Wise",
 				performanceList);
 	}
 

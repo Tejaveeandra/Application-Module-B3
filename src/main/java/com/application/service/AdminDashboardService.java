@@ -52,10 +52,15 @@ public class AdminDashboardService {
     public DashboardResponseDTO getDashboardData(Integer employeeId) {
        
         // Get current academic year from AcademicYear table (not MAX year from AdminApp)
-        // Current year is determined by: current calendar year - 1
-        // This ensures we use the actual current year, not a future year
-        int currentCalendarYear = java.time.Year.now().getValue();
-        int currentAcademicYearValue = currentCalendarYear - 1;
+        // Academic year transitions on March 1st:
+        // - Before March 1st: current academic year = (current calendar year - 1)
+        //   Example: Feb 28, 2026 → academic year 2025-26 (year = 2025)
+        // - On/After March 1st: current academic year = current calendar year
+        //   Example: March 1, 2026 → academic year 2026-27 (year = 2026)
+        java.time.LocalDate today = java.time.LocalDate.now();
+        int currentCalendarYear = today.getYear();
+        int currentMonth = today.getMonthValue();
+        int currentAcademicYearValue = (currentMonth >= 3) ? currentCalendarYear : (currentCalendarYear - 1);
         
         // Find the current academic year entity
         java.util.Optional<AcademicYear> currentYearEntityOpt = academicYearRepository
