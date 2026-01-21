@@ -1795,30 +1795,54 @@ public class DgmService {
 
     @Cacheable(cacheNames = "campusesByZone", key = "#zoneId")
     public List<GenericDropdownDTO> getCampusesByZoneId(int zoneId) {
-        // Call the new repository method
-        return campusRepository.findActiveCampusesByZoneId(zoneId).stream()
-                // .distinct() might be useful here to ensure unique campuses if a campus is
-                // linked to multiple active zonal accountants in the same zone
-                .distinct().map(campus -> new GenericDropdownDTO(campus.getCampusId(), campus.getCampusName()))
+        // Query directly from Campus table where zone_id matches and is_active = 1
+        // This ensures we get all active campuses in the zone, not just those linked to ZonalAccountant records
+        return campusRepository.findByZoneZoneId(zoneId).stream()
+                .distinct()
+                .map(campus -> new GenericDropdownDTO(campus.getCampusId(), campus.getCampusName()))
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Helper method to get zone IDs for an employee
+     * Priority: 1. Employee view (direct source of truth), 2. ZonalAccountant table (fallback)
+     */
+    private List<Integer> getZoneIdsForEmployee(int empId) {
+        // First, check employee view directly (source of truth)
+        List<SCEmployeeEntity> employees = scEmployeeRepository.findByEmpId(empId);
+        if (employees != null && !employees.isEmpty()) {
+            SCEmployeeEntity employee = employees.get(0);
+            // If employee is a ZONAL ACCOUNTANT and has zone_id, use it directly
+            if (employee.getDesignationName() != null && 
+                employee.getDesignationName().trim().equalsIgnoreCase("ZONAL ACCOUNTANT") &&
+                employee.getZoneId() > 0) {
+                return java.util.Collections.singletonList(employee.getZoneId());
+            }
+        }
+        
+        // Fallback: Check ZonalAccountant table (for cases where employee view might not have the data)
+        List<Integer> zoneIds = zonalAccountantRepository.findZoneIdByEmployeeId(empId);
+        return (zoneIds != null && !zoneIds.isEmpty()) ? zoneIds : Collections.emptyList();
     }
 
     @Cacheable(cacheNames = "campusforzonalaccountant", key = "#empId")
     public List<GenericDropdownDTO> getCampusesByEmployeeId(int empId) {
-        List<Integer> zoneIds = zonalAccountantRepository.findZoneIdByEmployeeId(empId);
-        if (zoneIds == null || zoneIds.isEmpty()) {
+        List<Integer> zoneIds = getZoneIdsForEmployee(empId);
+        
+        if (zoneIds.isEmpty()) {
             return Collections.emptyList();
         }
 
-        return zoneIds.stream().flatMap(zoneId -> getCampusesByZoneId(zoneId).stream()).distinct()
+        return zoneIds.stream()
+                .flatMap(zoneId -> getCampusesByZoneId(zoneId).stream())
+                .distinct()
                 .collect(Collectors.toList());
     }
 
     public List<GenericDropdownDTO> getCampusesByEmployeeIdAndCategory(int empId, String category) {
-
-        List<Integer> zoneIds = zonalAccountantRepository.findZoneIdByEmployeeId(empId);
-
-        if (zoneIds == null || zoneIds.isEmpty()) {
+        List<Integer> zoneIds = getZoneIdsForEmployee(empId);
+        
+        if (zoneIds.isEmpty()) {
             return Collections.emptyList();
         }
 
@@ -1835,6 +1859,12 @@ public class DgmService {
         }
 
         String cat = category.trim().toLowerCase();
+        
+        // Validate category - ignore invalid values like "[object object]" from frontend errors
+        if (cat.contains("[object") || cat.equals("object") || cat.length() > 20) {
+            // Invalid category value, return all campuses without filtering
+            return allCampuses;
+        }
 
         return allCampuses.stream()
                 .filter(c -> {
@@ -1892,8 +1922,9 @@ public class DgmService {
     }
 
     public List<GenericDropdownDTO> getActiveCampusesByEmployeeId(int empId) {
-        List<Integer> zoneIds = zonalAccountantRepository.findZoneIdByEmployeeId(empId);
-        if (zoneIds == null || zoneIds.isEmpty()) {
+        List<Integer> zoneIds = getZoneIdsForEmployee(empId);
+        
+        if (zoneIds.isEmpty()) {
             return Collections.emptyList();
         }
 
@@ -1908,10 +1939,10 @@ public class DgmService {
     }
 
     public List<GenericDropdownDTO> getActiveCampusesByEmployeeIdAndCategory(int empId, String category) {
-
         // Step 1 → Find zones for this zonal accountant
-        List<Integer> zoneIds = zonalAccountantRepository.findZoneIdByEmployeeId(empId);
-        if (zoneIds == null || zoneIds.isEmpty()) {
+        List<Integer> zoneIds = getZoneIdsForEmployee(empId);
+        
+        if (zoneIds.isEmpty()) {
             return Collections.emptyList();
         }
 
@@ -1931,6 +1962,12 @@ public class DgmService {
 
         // Step 5 → Filter by business type (school/college)
         String cat = category.trim().toLowerCase();
+        
+        // Validate category - ignore invalid values like "[object object]" from frontend errors
+        if (cat.contains("[object") || cat.equals("object") || cat.length() > 20) {
+            // Invalid category value, return all campuses without filtering
+            return campuses;
+        }
 
         return campuses.stream()
                 .filter(c -> matchBusinessType(c.getId(), cat))
@@ -1960,13 +1997,21 @@ public class DgmService {
             return true;
         }
 
+        String cat = category.trim().toLowerCase();
+        
+        // Validate category - ignore invalid values like "[object object]" from frontend errors
+        if (cat.contains("[object") || cat.equals("object") || cat.length() > 20) {
+            // Invalid category value, return true to include all campuses
+            return true;
+        }
+
         if (campus.getBusinessType() == null) {
             return false;
         }
 
         String type = campus.getBusinessType().getBusinessTypeName().toLowerCase();
 
-        switch (category.toLowerCase()) {
+        switch (cat) {
             case "school":
                 return type.contains("school");
             case "college":
@@ -1977,6 +2022,17 @@ public class DgmService {
     }
 
     private boolean matchBusinessType(Integer campusId, String category) {
+        if (category == null || category.isBlank()) {
+            return true;
+        }
+
+        String cat = category.trim().toLowerCase();
+        
+        // Validate category - ignore invalid values like "[object object]" from frontend errors
+        if (cat.contains("[object") || cat.equals("object") || cat.length() > 20) {
+            // Invalid category value, return true to include all campuses
+            return true;
+        }
 
         Campus campus = campusRepository.findById(campusId).orElse(null);
         if (campus == null || campus.getBusinessType() == null) {
@@ -1985,7 +2041,7 @@ public class DgmService {
 
         String businessName = campus.getBusinessType().getBusinessTypeName().toLowerCase();
 
-        switch (category) {
+        switch (cat) {
             case "school":
                 return businessName.contains("school");
             case "college":
@@ -2146,20 +2202,25 @@ public class DgmService {
      * Returns a list of DGM records with their campuses for the given employee
      */
     public List<DgmWithCampusesDTO> getDgmWithCampusesByEmployeeId(Integer employeeId) {
-        // 1. Check if the employee is a Zonal Accountant (Has mapped zones)
-        List<Integer> zoneIds = zonalAccountantRepository.findZoneIdByEmployeeId(employeeId);
+        // 1. Get zone IDs for this employee (checks employee view first, then ZonalAccountant table)
+        List<Integer> zoneIds = getZoneIdsForEmployee(employeeId);
 
         List<Dgm> dgmRecords;
 
         if (zoneIds != null && !zoneIds.isEmpty()) {
             // CASE A: Zonal Accountant - Fetch all Active DGMs in those Zones
+            System.out.println("DEBUG: Fetching active DGMs for zones: " + zoneIds);
             dgmRecords = dgmRepository.findActiveDgmByZoneIds(zoneIds);
+            System.out.println("DEBUG: Found " + (dgmRecords != null ? dgmRecords.size() : 0) + " active DGM records");
         } else {
             // CASE B: DGM (or other) - Fetch DGM records for this employee specifically
+            System.out.println("DEBUG: Fetching DGM records for employee: " + employeeId);
             dgmRecords = dgmRepository.findDgmWithCampusesByEmployeeId(employeeId);
+            System.out.println("DEBUG: Found " + (dgmRecords != null ? dgmRecords.size() : 0) + " DGM records for employee");
         }
 
         if (dgmRecords == null || dgmRecords.isEmpty()) {
+            System.out.println("DEBUG: No DGM records found, returning empty list");
             return new ArrayList<>();
         }
 
