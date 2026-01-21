@@ -2632,6 +2632,22 @@ public class DgmService {
         distribution.setIssued_to_emp_id(receiverEmpId);
         distribution.setIssued_to_pro_id(null);
 
+        // --- REMAINDER CREATION LOGIC DISABLED FOR POST ---
+        // DISABLED: Remainder creation should only happen during PUT (update) operations, not POST (create)
+        // When Zone distributes to DGM via POST, the parent distribution (Admin→Zone) remains unchanged
+        // The original 100 count stays as-is. Remainders are only created when Admin updates the distribution.
+        // 
+        // Original logic commented out:
+        // List<Distribution> parentCandidates = distributionRepository.findParentContainingRange(
+        //         issuerUserId, formDto.getAcademicYearId(), formDto.getApplication_Amount(), startNo, endNo);
+        // Optional<Distribution> parentOpt = parentCandidates.stream().findFirst();
+        // if (parentOpt.isPresent()) {
+        //     Distribution parent = parentOpt.get();
+        //     parent.setIsActive(0);
+        //     // Create remainders...
+        // }
+        // --- REMAINDER CREATION LOGIC DISABLED FOR POST ---
+
         // 4. Save & Flush
         System.out.println("=== DISTRIBUTION SAVE (NEW) ===");
         System.out.println("Operation: CREATE NEW DISTRIBUTION");
@@ -2735,15 +2751,137 @@ public class DgmService {
 
         // -------------------------------------------------------
         // STEP 6: HANDLE REMAINDERS (If Range Shrank)
+        // IMPORTANT: Campus (Type 4) is UNDER DGM, so apps with Campus are still part of DGM's count
+        // Only transfers to OTHER entities reduce DGM's count
+        // COMBINE all remainder ranges into a SINGLE record
         // -------------------------------------------------------
         if (isRangeChanging) {
-            // Leftover BEFORE the new range -> Stays with OLD Receiver
+            System.out.println("📊 DGM Remainder Creation Analysis:");
+            System.out.println("  Old Range: " + oldStart + " - " + oldEnd);
+            System.out.println("  New Range: " + newStart + " - " + newEnd);
+            System.out.println("  DGM Employee ID: " + existingDistribution.getIssued_to_emp_id());
+            System.out.println("  Note: Campus distributions (Type 4) are still part of DGM's count");
+            System.out.println("  Note: Only transfers to other entities reduce DGM's count");
+            
+            // Collect all remainder ranges that should be created
+            java.util.List<int[]> remainderRanges = new java.util.ArrayList<>();
+            
+            // Check for portion BEFORE the new range
             if (oldStart < newStart) {
-                createAndSaveRemainder(existingDistribution, oldStart, newStart - 1);
+                int remainderStart = oldStart;
+                int remainderEnd = newStart - 1;
+                
+                // Check if DGM distributed this range to ANOTHER entity (not Campus/Type 4)
+                List<Distribution> subDists = distributionRepository.findSubDistributionsInRange(
+                        existingDistribution.getIssued_to_emp_id(),
+                        existingDistribution.getAcademicYear().getAcdcYearId(),
+                        originalAmount,
+                        remainderStart,
+                        remainderEnd);
+                
+                // Filter: Only skip if distributed to another DGM (Type 3) or Zone (Type 2) or other entities
+                // Campus (Type 4) distributions are still part of DGM's count
+                List<Distribution> dgmToOtherDists = subDists.stream()
+                        .filter(sub -> sub.getIssuedToType() != null && 
+                                sub.getIssuedToType().getAppIssuedId() != 4) // Not Campus
+                        .collect(java.util.stream.Collectors.toList());
+                
+                if (dgmToOtherDists.isEmpty()) {
+                    // No transfers to other entities, add to remainder ranges (includes Campus distributions)
+                    remainderRanges.add(new int[]{remainderStart, remainderEnd});
+                    System.out.println("  ✅ Adding remainder (before): " + remainderStart + " - " + remainderEnd);
+                    if (!subDists.isEmpty()) {
+                        System.out.println("    (Includes " + subDists.size() + " Campus distribution(s) - still part of DGM's count)");
+                    }
+                } else {
+                    System.out.println("  ⏭️ Skipping remainder (before): " + remainderStart + " - " + remainderEnd + 
+                            " (DGM transferred " + dgmToOtherDists.size() + " sub-distribution(s) to other entity/ies)");
+                }
             }
-            // Leftover AFTER the new range -> Stays with OLD Receiver
+            
+            // Check for portion AFTER the new range
             if (oldEnd > newEnd) {
-                createAndSaveRemainder(existingDistribution, newEnd + 1, oldEnd);
+                int remainderStart = newEnd + 1;
+                int remainderEnd = oldEnd;
+                
+                // Check if DGM distributed this range to ANOTHER entity (not Campus/Type 4)
+                List<Distribution> subDists = distributionRepository.findSubDistributionsInRange(
+                        existingDistribution.getIssued_to_emp_id(),
+                        existingDistribution.getAcademicYear().getAcdcYearId(),
+                        originalAmount,
+                        remainderStart,
+                        remainderEnd);
+                
+                // Filter: Only skip if distributed to another DGM (Type 3) or Zone (Type 2) or other entities
+                List<Distribution> dgmToOtherDists = subDists.stream()
+                        .filter(sub -> sub.getIssuedToType() != null && 
+                                sub.getIssuedToType().getAppIssuedId() != 4) // Not Campus
+                        .collect(java.util.stream.Collectors.toList());
+                
+                if (dgmToOtherDists.isEmpty()) {
+                    // No transfers to other entities, add to remainder ranges (includes Campus distributions)
+                    remainderRanges.add(new int[]{remainderStart, remainderEnd});
+                    System.out.println("  ✅ Adding remainder (after): " + remainderStart + " - " + remainderEnd);
+                    if (!subDists.isEmpty()) {
+                        System.out.println("    (Includes " + subDists.size() + " Campus distribution(s) - still part of DGM's count)");
+                    }
+                } else {
+                    System.out.println("  ⏭️ Skipping remainder (after): " + remainderStart + " - " + remainderEnd + 
+                            " (DGM transferred " + dgmToOtherDists.size() + " sub-distribution(s) to other entity/ies)");
+                }
+            }
+            
+            // Combine all remainder ranges into a SINGLE record
+            if (!remainderRanges.isEmpty()) {
+                // Sort by start number
+                remainderRanges.sort((a, b) -> Integer.compare(a[0], b[0]));
+                
+                // Find the overall range: from first start to last end
+                int combinedStart = remainderRanges.get(0)[0];
+                int combinedEnd = remainderRanges.get(remainderRanges.size() - 1)[1];
+                
+                // Calculate total count across all remainder ranges
+                int totalCount = remainderRanges.stream()
+                        .mapToInt(range -> range[1] - range[0] + 1)
+                        .sum();
+                
+                System.out.println("  📦 Combining " + remainderRanges.size() + " remainder range(s) into SINGLE record:");
+                for (int[] range : remainderRanges) {
+                    System.out.println("    - Range: " + range[0] + " - " + range[1] + " (" + (range[1] - range[0] + 1) + " apps)");
+                }
+                System.out.println("  ✅ Creating SINGLE combined remainder: " + combinedStart + " - " + combinedEnd + " (" + totalCount + " apps)");
+                
+                // Create a single remainder record with the full range and total count
+                Distribution combinedRemainder = new Distribution();
+                combinedRemainder.setAcademicYear(existingDistribution.getAcademicYear());
+                combinedRemainder.setState(existingDistribution.getState());
+                combinedRemainder.setCity(existingDistribution.getCity());
+                combinedRemainder.setZone(existingDistribution.getZone());
+                combinedRemainder.setDistrict(existingDistribution.getDistrict());
+                combinedRemainder.setCampus(existingDistribution.getCampus());
+                combinedRemainder.setIssuedByType(existingDistribution.getIssuedByType());
+                combinedRemainder.setIssuedToType(existingDistribution.getIssuedToType());
+                combinedRemainder.setCreated_by(existingDistribution.getCreated_by());
+                combinedRemainder.setIssueDate(java.time.LocalDateTime.now());
+                combinedRemainder.setAmount(existingDistribution.getAmount());
+                combinedRemainder.setIssued_to_emp_id(existingDistribution.getIssued_to_emp_id());
+                combinedRemainder.setIssued_to_pro_id(existingDistribution.getIssued_to_pro_id());
+                
+                // Set the combined range and count
+                combinedRemainder.setAppStartNo(combinedStart);
+                combinedRemainder.setAppEndNo(combinedEnd);
+                combinedRemainder.setTotalAppCount(totalCount); // Use actual count, not range size
+                combinedRemainder.setIsActive(1);
+                
+                System.out.println("=== DISTRIBUTION SAVE (COMBINED REMAINDER) - DgmService ===");
+                System.out.println("Operation: CREATE SINGLE COMBINED REMAINDER");
+                System.out.println("Combined Range: " + combinedRemainder.getAppStartNo() + " - " + combinedRemainder.getAppEndNo());
+                System.out.println("Total Count: " + combinedRemainder.getTotalAppCount() + " apps (sum of all remainder ranges)");
+                System.out.println("Receiver EmpId: " + combinedRemainder.getIssued_to_emp_id());
+                System.out.println("Amount: " + combinedRemainder.getAmount());
+                distributionRepository.saveAndFlush(combinedRemainder);
+                System.out.println("Combined Remainder Distribution ID: " + combinedRemainder.getAppDistributionId());
+                System.out.println("============================================================");
             }
         }
 
@@ -3008,21 +3146,127 @@ public class DgmService {
 
         // 1. Get ALL Active Distributions RECEIVED by this user
         List<Distribution> allReceived = distributionRepository.findActiveHoldingsForEmp(empId, acYearId);
+        
+        System.out.println("DEBUG DGM: rebuildBalancesFromDistributions - Employee: " + empId + 
+                ", All Received Distributions (before amount filter): " + allReceived.size());
+        for (Distribution d : allReceived) {
+            System.out.println("  - Distribution ID: " + d.getAppDistributionId() + 
+                    ", Range: " + d.getAppStartNo() + "-" + d.getAppEndNo() + 
+                    ", Amount: " + d.getAmount() + 
+                    ", IsActive: " + d.getIsActive());
+        }
 
         // 2. Filter by Amount
         List<Distribution> received = allReceived.stream()
                 .filter(d -> d.getAmount() != null && Math.abs(d.getAmount() - amount) < 0.01)
                 .sorted((d1, d2) -> Long.compare(d1.getAppStartNo(), d2.getAppStartNo()))
                 .toList();
+        
+        System.out.println("DEBUG DGM: rebuildBalancesFromDistributions - Employee: " + empId + 
+                ", Received Distributions (after amount filter): " + received.size() + 
+                ", Filter Amount: " + amount);
+        for (Distribution d : received) {
+            System.out.println("  - Distribution ID: " + d.getAppDistributionId() + 
+                    ", Range: " + d.getAppStartNo() + "-" + d.getAppEndNo() + 
+                    ", Count: " + d.getTotalAppCount());
+        }
 
         // 3. Get ALL Distributions GIVEN AWAY by this user
         List<Distribution> allGivenAway = distributionRepository.findByCreatedByAndYear(empId, acYearId);
 
-        // 4. Filter given away by amount
-        List<Distribution> givenAway = allGivenAway.stream()
+        // 3b. Also find distributions that OVERLAP with received ranges but have different issued_to_emp_id
+        // This catches cases where Admin/Zone updated and transferred apps away from this DGM
+        // Example: Admin/Zone updates DGM's distribution, taking apps and giving to another DGM/Campus
+        // The new distribution has created_by = Admin/Zone, but it overlaps with DGM's received range
+        // CRITICAL: Only count as "taken away" if the overlapping distribution was created AFTER the received distribution
+        // OR if it represents apps that were actually taken from this DGM's original range
+        List<Distribution> overlappingTakenAway = new java.util.ArrayList<>();
+        for (Distribution receivedDist : received) {
+            int receivedStart = (int) receivedDist.getAppStartNo();
+            int receivedEnd = (int) receivedDist.getAppEndNo();
+            
+            // Find all active distributions that overlap with this received range
+            List<Distribution> overlapping = distributionRepository.findOverlappingDistributions(
+                    acYearId, receivedStart, receivedEnd);
+            
+            for (Distribution overlap : overlapping) {
+                // Only include if:
+                // 1. Same amount
+                // 2. Different issued_to_emp_id (apps were given to someone else)
+                // 3. Active
+                // 4. Not already in allGivenAway (avoid duplicates)
+                // 5. CRITICAL: The overlap must be WITHIN the received range (not just overlapping)
+                //    AND it must represent apps that were actually taken from this DGM
+                int overlapStart = (int) overlap.getAppStartNo();
+                int overlapEnd = (int) overlap.getAppEndNo();
+                
+                // Check if this overlap is actually WITHIN the received range (overlap is subset of received)
+                // This means: overlap.start >= receivedStart AND overlap.end <= receivedEnd
+                boolean isWithinReceivedRange = overlapStart >= receivedStart && overlapEnd <= receivedEnd;
+                
+                // CRITICAL: EXCLUDE if the overlap CONTAINS the received range (remainder distributions)
+                // Example: Received: 2875052-2875076, Overlap: 2875002-2875101 (remainder for another DGM)
+                // This should NOT be counted as "given away" for this DGM
+                boolean overlapContainsReceived = overlapStart <= receivedStart && overlapEnd >= receivedEnd;
+                
+                // Check if it was created by Admin/Zone (represents a transfer/update)
+                boolean isAdminOrZoneTransfer = overlap.getCreated_by() != empId &&
+                        overlap.getIssuedByType() != null &&
+                        (overlap.getIssuedByType().getAppIssuedId() == 1 || // Admin/CO type
+                         overlap.getIssuedByType().getAppIssuedId() == 2); // Zone type
+                
+                // Only count as "taken away" if:
+                // 1. The overlap is WITHIN the received range (subset), AND
+                // 2. It was created by Admin/Zone (transfer), AND
+                // 3. It does NOT contain the received range (exclude remainders)
+                boolean shouldCountAsTakenAway = isWithinReceivedRange && 
+                        isAdminOrZoneTransfer && 
+                        !overlapContainsReceived;
+                
+                if (Math.abs(overlap.getAmount() - amount) < 0.01 &&
+                    overlap.getIssued_to_emp_id() != null &&
+                    !overlap.getIssued_to_emp_id().equals(empId) &&
+                    overlap.getIsActive() == 1 &&
+                    !allGivenAway.contains(overlap) &&
+                    shouldCountAsTakenAway) {
+                    overlappingTakenAway.add(overlap);
+                    System.out.println("DEBUG DGM: Found overlapping distribution taken away - ID: " + 
+                            overlap.getAppDistributionId() + ", Range: " + 
+                            overlap.getAppStartNo() + "-" + overlap.getAppEndNo() + 
+                            ", Issued to: " + overlap.getIssued_to_emp_id() + 
+                            ", Created by: " + overlap.getCreated_by() +
+                            ", IsWithinReceived: " + isWithinReceivedRange +
+                            ", IsAdminOrZoneTransfer: " + isAdminOrZoneTransfer +
+                            ", OverlapContainsReceived: " + overlapContainsReceived);
+                } else {
+                    System.out.println("DEBUG DGM: Excluding overlapping distribution - ID: " + 
+                            overlap.getAppDistributionId() + ", Range: " + 
+                            overlap.getAppStartNo() + "-" + overlap.getAppEndNo() + 
+                            ", Issued to: " + overlap.getIssued_to_emp_id() + 
+                            ", Created by: " + overlap.getCreated_by() +
+                            ", IsWithinReceived: " + isWithinReceivedRange +
+                            ", IsAdminOrZoneTransfer: " + isAdminOrZoneTransfer +
+                            ", OverlapContainsReceived: " + overlapContainsReceived +
+                            " (not taken from this DGM)");
+                }
+            }
+        }
+
+        // 4. Combine both lists and filter by amount
+        // NOTE: BalanceTrack represents AVAILABLE stock for distribution
+        // So ALL distributions (including Campus Type 4) ARE subtracted
+        // because they're no longer available for the DGM to distribute
+        // The Distribution table shows total holdings (including what's with Campus)
+        // But BalanceTrack shows what's actually available to distribute
+        List<Distribution> givenAway = new java.util.ArrayList<>(allGivenAway);
+        givenAway.addAll(overlappingTakenAway);
+        givenAway = givenAway.stream()
                 .filter(d -> d.getAmount() != null && Math.abs(d.getAmount() - amount) < 0.01)
                 .sorted((d1, d2) -> Long.compare(d1.getAppStartNo(), d2.getAppStartNo()))
                 .toList();
+        
+        System.out.println("DEBUG DGM: rebuildBalancesFromDistributions - Employee: " + empId
+                + ", Given Away Distributions: " + givenAway.size());
 
         // 5. Get CURRENT Active Balance Rows for Reuse
         // REUSE STRATEGY: Instead of deactivating all, we keep them in a list/queue
@@ -3035,8 +3279,13 @@ public class DgmService {
 
         // 7. Calculate remaining ranges
         if (received.isEmpty()) {
-            System.out.println("WARNING DGM: No received distributions found for Employee " + empId + " with amount "
-                    + amount);
+            System.out.println("⚠️ WARNING DGM: No received distributions found for Employee " + empId + 
+                    " with amount " + amount + " in academic year " + acYearId);
+            System.out.println("  This might indicate:");
+            System.out.println("    1. The distribution was not created yet (timing issue)");
+            System.out.println("    2. The amount doesn't match (expected: " + amount + ")");
+            System.out.println("    3. The distribution is inactive");
+            System.out.println("    4. The employee ID doesn't match");
             // We need a zero-balance active record
             BalanceTrack nb;
             if (!reusePool.isEmpty()) {
@@ -3056,15 +3305,22 @@ public class DgmService {
                 int receivedStart = (int) receivedDist.getAppStartNo();
                 int receivedEnd = (int) receivedDist.getAppEndNo();
 
+                System.out.println("DEBUG DGM: Processing received distribution: " + receivedStart + " - " + receivedEnd);
+
                 // Find overlapping given away ranges
                 List<int[]> givenAwayRanges = new java.util.ArrayList<>();
                 for (Distribution given : givenAway) {
                     int givenStart = (int) given.getAppStartNo();
                     int givenEnd = (int) given.getAppEndNo();
+                    
+                    // Check if given away range overlaps with received range
                     if (givenStart <= receivedEnd && givenEnd >= receivedStart) {
+                        // Calculate overlap
                         int overlapStart = Math.max(givenStart, receivedStart);
                         int overlapEnd = Math.min(givenEnd, receivedEnd);
                         givenAwayRanges.add(new int[] { overlapStart, overlapEnd });
+                        System.out.println("DEBUG DGM: Found overlap - Given away: " + givenStart + "-" + givenEnd +
+                                ", Overlaps with received: " + overlapStart + "-" + overlapEnd);
                     }
                 }
 

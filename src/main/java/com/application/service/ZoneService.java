@@ -534,28 +534,184 @@ public class ZoneService {
         newDist.setIssued_to_emp_id(newTargetId);
         newDist.setIssued_to_pro_id(null); // Zone service keeps this null
         newDist.setAmount(originalAmount); // Preserve Amount
+        
+        // IMPORTANT: For UPDATES, use the EXACT values from the request
+        // This allows overwriting the count even if it was previously consumed
+        // The consumable stock logic only applies to NEW distributions, not updates
+        newDist.setAppStartNo(request.getAppStartNo());
+        newDist.setAppEndNo(request.getAppEndNo());
+        newDist.setTotalAppCount(request.getRange()); // Use exact count from request (can overwrite consumed values)
 
         System.out.println("=== DISTRIBUTION UPDATE (CREATE NEW) - ZoneService ===");
         System.out.println("Operation: CREATE NEW DISTRIBUTION (UPDATE)");
         System.out.println("New Range: " + newDist.getAppStartNo() + " - " + newDist.getAppEndNo());
+        System.out.println("New Total Count: " + newDist.getTotalAppCount() + " (from request, overwrites any consumed values)");
         System.out.println("New Receiver EmpId: " + newDist.getIssued_to_emp_id());
         System.out.println("Amount: " + newDist.getAmount());
         distributionRepository.saveAndFlush(newDist);
         System.out.println("New Distribution ID: " + newDist.getAppDistributionId());
         System.out.println("======================================================");
 
-        // 5. Handle Remainders
+        // 5. Handle Remainders: Create remainders for dropped ranges
+        // IMPORTANT: DGM (Type 3) is UNDER Zone, so apps with DGM are still part of Zone's count
+        // Only transfers to OTHER ZONES (Type 2) reduce Zone's count
+        // COMBINE adjacent remainders into a single record
         int oldStart = (int) existingDist.getAppStartNo();
         int oldEnd = (int) existingDist.getAppEndNo();
+        int newStart = request.getAppStartNo();
+        int newEnd = request.getAppEndNo();
 
-        if (oldStart != request.getAppStartNo() || oldEnd != request.getAppEndNo()) {
-            if (oldStart < request.getAppStartNo()) {
-                createAndSaveRemainder(existingDist, oldStart, request.getAppStartNo() - 1);
+        if (oldStart != newStart || oldEnd != newEnd) {
+            System.out.println("📊 Remainder Creation Analysis:");
+            System.out.println("  Old Range: " + oldStart + " - " + oldEnd);
+            System.out.println("  New Range: " + newStart + " - " + newEnd);
+            System.out.println("  Zone Employee ID: " + existingDist.getIssued_to_emp_id());
+            System.out.println("  Note: DGM distributions (Type 3) are still part of Zone's count");
+            System.out.println("  Note: Only transfers to other Zones (Type 2) reduce Zone's count");
+            
+            // Collect all remainder ranges that should be created
+            java.util.List<int[]> remainderRanges = new java.util.ArrayList<>();
+            
+            // Check for portion BEFORE the new range
+            if (oldStart < newStart) {
+                int remainderStart = oldStart;
+                int remainderEnd = Math.min(oldEnd, newStart - 1);
+                
+                // Check if Zone distributed this range to ANOTHER ZONE (Type 2)
+                List<Distribution> subDists = distributionRepository.findSubDistributionsInRange(
+                        existingDist.getIssued_to_emp_id(),
+                        existingDist.getAcademicYear().getAcdcYearId(),
+                        originalAmount,
+                        remainderStart,
+                        remainderEnd);
+                
+                // Filter: Only skip if distributed to another Zone (Type 2)
+                List<Distribution> zoneToZoneDists = subDists.stream()
+                        .filter(sub -> sub.getIssuedToType() != null && sub.getIssuedToType().getAppIssuedId() == 2)
+                        .collect(java.util.stream.Collectors.toList());
+                
+                if (zoneToZoneDists.isEmpty()) {
+                    // No transfers to other Zones, add to remainder ranges
+                    remainderRanges.add(new int[]{remainderStart, remainderEnd});
+                    System.out.println("  ✅ Adding remainder (before): " + remainderStart + " - " + remainderEnd);
+                    if (!subDists.isEmpty()) {
+                        System.out.println("    (Includes " + subDists.size() + " DGM distribution(s) - still part of Zone's count)");
+                    }
+                } else {
+                    System.out.println("  ⏭️ Skipping remainder (before): " + remainderStart + " - " + remainderEnd + 
+                            " (Zone transferred " + zoneToZoneDists.size() + " sub-distribution(s) to other Zone(s))");
+                }
             }
-            if (oldEnd > request.getAppEndNo()) {
-                createAndSaveRemainder(existingDist, request.getAppEndNo() + 1, oldEnd);
+            
+            // Check for portion AFTER the new range
+            if (oldEnd > newEnd) {
+                int remainderStart = Math.max(oldStart, newEnd + 1);
+                int remainderEnd = oldEnd;
+                
+                // Check if Zone distributed this range to ANOTHER ZONE (Type 2)
+                List<Distribution> subDists = distributionRepository.findSubDistributionsInRange(
+                        existingDist.getIssued_to_emp_id(),
+                        existingDist.getAcademicYear().getAcdcYearId(),
+                        originalAmount,
+                        remainderStart,
+                        remainderEnd);
+                
+                // Filter: Only skip if distributed to another Zone (Type 2)
+                List<Distribution> zoneToZoneDists = subDists.stream()
+                        .filter(sub -> sub.getIssuedToType() != null && sub.getIssuedToType().getAppIssuedId() == 2)
+                        .collect(java.util.stream.Collectors.toList());
+                
+                if (zoneToZoneDists.isEmpty()) {
+                    // No transfers to other Zones, add to remainder ranges
+                    remainderRanges.add(new int[]{remainderStart, remainderEnd});
+                    System.out.println("  ✅ Adding remainder (after): " + remainderStart + " - " + remainderEnd);
+                    if (!subDists.isEmpty()) {
+                        System.out.println("    (Includes " + subDists.size() + " DGM distribution(s) - still part of Zone's count)");
+                    }
+                } else {
+                    System.out.println("  ⏭️ Skipping remainder (after): " + remainderStart + " - " + remainderEnd + 
+                            " (Zone transferred " + zoneToZoneDists.size() + " sub-distribution(s) to other Zone(s))");
+                }
+            }
+            
+            // Combine all remainder ranges into a SINGLE record
+            // Even if there are gaps (e.g., apps given to other zones), create one record
+            // covering the full range from first remainder start to last remainder end
+            if (!remainderRanges.isEmpty()) {
+                // Sort by start number
+                remainderRanges.sort((a, b) -> Integer.compare(a[0], b[0]));
+                
+                // Find the overall range: from first start to last end
+                int combinedStart = remainderRanges.get(0)[0];
+                int combinedEnd = remainderRanges.get(remainderRanges.size() - 1)[1];
+                
+                // Calculate total count across all remainder ranges
+                int totalCount = remainderRanges.stream()
+                        .mapToInt(range -> range[1] - range[0] + 1)
+                        .sum();
+                
+                System.out.println("  📦 Combining " + remainderRanges.size() + " remainder range(s) into SINGLE record:");
+                for (int[] range : remainderRanges) {
+                    System.out.println("    - Range: " + range[0] + " - " + range[1] + " (" + (range[1] - range[0] + 1) + " apps)");
+                }
+                System.out.println("  ✅ Creating SINGLE combined remainder: " + combinedStart + " - " + combinedEnd + " (" + totalCount + " apps)");
+                
+                // Create a single remainder record with the full range and total count
+                Distribution combinedRemainder = new Distribution();
+                combinedRemainder.setAcademicYear(existingDist.getAcademicYear());
+                combinedRemainder.setState(existingDist.getState());
+                combinedRemainder.setCity(existingDist.getCity());
+                combinedRemainder.setZone(existingDist.getZone());
+                combinedRemainder.setDistrict(existingDist.getDistrict());
+                combinedRemainder.setIssuedByType(existingDist.getIssuedByType());
+                combinedRemainder.setIssuedToType(existingDist.getIssuedToType());
+                combinedRemainder.setCreated_by(existingDist.getCreated_by());
+                combinedRemainder.setIssueDate(java.time.LocalDateTime.now());
+                combinedRemainder.setAmount(existingDist.getAmount());
+                combinedRemainder.setIssued_to_emp_id(existingDist.getIssued_to_emp_id());
+                combinedRemainder.setIssued_to_pro_id(existingDist.getIssued_to_pro_id());
+                
+                // Set the combined range and count
+                combinedRemainder.setAppStartNo(combinedStart);
+                combinedRemainder.setAppEndNo(combinedEnd);
+                combinedRemainder.setTotalAppCount(totalCount); // Use actual count, not range size
+                combinedRemainder.setIsActive(1);
+                
+                System.out.println("=== DISTRIBUTION SAVE (COMBINED REMAINDER) - ZoneService ===");
+                System.out.println("Operation: CREATE SINGLE COMBINED REMAINDER");
+                System.out.println("Combined Range: " + combinedRemainder.getAppStartNo() + " - " + combinedRemainder.getAppEndNo());
+                System.out.println("Total Count: " + combinedRemainder.getTotalAppCount() + " apps (sum of all remainder ranges)");
+                System.out.println("Receiver EmpId: " + combinedRemainder.getIssued_to_emp_id());
+                System.out.println("Amount: " + combinedRemainder.getAmount());
+                distributionRepository.saveAndFlush(combinedRemainder);
+                System.out.println("Combined Remainder Distribution ID: " + combinedRemainder.getAppDistributionId());
+                System.out.println("============================================================");
             }
         }
+        
+        // 6. Check if the new range overlaps with what Zone already distributed
+        // If it does, we should NOT create the new distribution record for that overlapping part
+        List<Distribution> overlappingSubDists = distributionRepository.findSubDistributionsInRange(
+                existingDist.getIssued_to_emp_id(),
+                existingDist.getAcademicYear().getAcdcYearId(),
+                originalAmount,
+                newStart,
+                newEnd);
+        
+        if (!overlappingSubDists.isEmpty()) {
+            System.out.println("⚠️ WARNING: New range " + newStart + " - " + newEnd + 
+                    " overlaps with " + overlappingSubDists.size() + " existing sub-distribution(s)");
+            System.out.println("  The new distribution record will be created, but Zone already distributed parts of this range");
+            for (Distribution sub : overlappingSubDists) {
+                System.out.println("    - Sub-distribution ID: " + sub.getAppDistributionId() + 
+                        ", Range: " + sub.getAppStartNo() + " - " + sub.getAppEndNo());
+            }
+        }
+
+        // CRITICAL: Flush all distribution changes (inactivation, new record, remainders) 
+        // before recalculating balances to ensure balance calculation sees the latest data
+        distributionRepository.flush();
+        System.out.println("DEBUG: Flushed all distribution changes before balance recalculation");
 
         // 6. Recalculate Balances
         int acYear = existingDist.getAcademicYear().getAcdcYearId();
@@ -566,16 +722,29 @@ public class ZoneService {
                 request.getCreatedBy(), originalAmount);
 
         // B. New Receiver
+        System.out.println("DEBUG: Recalculating balance for NEW receiver: " + newTargetId + 
+                ", Amount: " + originalAmount + ", Type: " + request.getIssuedToTypeId());
         recalculateBalanceForEmployee(newTargetId, acYear, stateId, request.getIssuedToTypeId(), request.getCreatedBy(),
                 originalAmount);
 
-        // C. Old Receiver (If changed)
+        // C. Old Receiver - ALWAYS recalculate if range changed or receiver changed
+        // This ensures BalanceTrack reflects the updated distribution (including remainders)
         Integer oldId = existingDist.getIssued_to_emp_id();
-        if (oldId != null && (!Objects.equals(oldId, newTargetId)
-                || (oldStart != request.getAppStartNo() || oldEnd != request.getAppEndNo()))) {
+        boolean rangeChanged = (oldStart != request.getAppStartNo() || oldEnd != request.getAppEndNo());
+        boolean receiverChanged = (oldId != null && !Objects.equals(oldId, newTargetId));
+        
+        if (oldId != null && (receiverChanged || rangeChanged)) {
+            System.out.println("DEBUG: Recalculating balance for old receiver: " + oldId + 
+                    " (receiverChanged: " + receiverChanged + ", rangeChanged: " + rangeChanged + ")");
             recalculateBalanceForEmployee(oldId, acYear, stateId, existingDist.getIssuedToType().getAppIssuedId(),
                     request.getCreatedBy(), originalAmount);
+        } else if (oldId != null) {
+            System.out.println("DEBUG: Skipping balance recalculation for old receiver: " + oldId + 
+                    " (no changes detected)");
         }
+        
+        // CRITICAL: Flush balance updates to ensure they're persisted
+        balanceTrackRepository.flush();
     }
 
     private void createAndSaveRemainder(Distribution originalDist, int start, int end) {
@@ -612,6 +781,33 @@ public class ZoneService {
         distributionRepository.saveAndFlush(remainder);
         System.out.println("Remainder Distribution ID: " + remainder.getAppDistributionId());
         System.out.println("===================================================");
+    }
+
+    private void handleSmartRecallForRange(Distribution originalDist, int dropStart, int dropEnd) {
+        System.out.println("  Checking range: " + dropStart + " - " + dropEnd);
+
+        // Find all active sub-distributions originating from the receiver within this
+        // dropped range
+        List<Distribution> subDists = distributionRepository.findSubDistributionsInRange(
+                originalDist.getIssued_to_emp_id(),
+                originalDist.getAcademicYear().getAcdcYearId(),
+                originalDist.getAmount(),
+                dropStart,
+                dropEnd);
+
+        if (subDists.isEmpty()) {
+            System.out.println("  - Status: FREE (No sub-distributions found. Returns to Issuer.)");
+        } else {
+            System.out.println("  - Status: OCCUPIED (Found " + subDists.size() + " sub-distributions)");
+            for (Distribution sub : subDists) {
+                // Ensure we only create remainders for the overlapping part
+                int overlapStart = Math.max(dropStart, (int) sub.getAppStartNo());
+                int overlapEnd = Math.min(dropEnd, (int) sub.getAppEndNo());
+
+                System.out.println("  - Creating remainder for occupied sub-range: " + overlapStart + " - " + overlapEnd);
+                createAndSaveRemainder(originalDist, overlapStart, overlapEnd);
+            }
+        }
     }
 
     private boolean handleOverlappingDistributions(List<Distribution> overlappingDists,
@@ -780,6 +976,15 @@ public class ZoneService {
 
         // 1. Get ALL Active Distributions RECEIVED by this user (what they hold)
         List<Distribution> allReceived = distributionRepository.findActiveHoldingsForEmp(empId, acYearId);
+        
+        System.out.println("DEBUG: rebuildBalancesFromDistributions - Employee: " + empId + 
+                ", All Received Distributions (before amount filter): " + allReceived.size());
+        for (Distribution d : allReceived) {
+            System.out.println("  - Distribution ID: " + d.getAppDistributionId() + 
+                    ", Range: " + d.getAppStartNo() + "-" + d.getAppEndNo() + 
+                    ", Amount: " + d.getAmount() + 
+                    ", IsActive: " + d.getIsActive());
+        }
 
         // 2. Filter by Amount
         List<Distribution> received = allReceived.stream()
@@ -787,14 +992,102 @@ public class ZoneService {
                 .sorted((d1, d2) -> Long.compare(d1.getAppStartNo(), d2.getAppStartNo()))
                 .toList();
 
-        System.out.println("DEBUG: rebuildBalancesFromDistributions - Employee: " + empId + ", Received Distributions: "
-                + received.size());
+        System.out.println("DEBUG: rebuildBalancesFromDistributions - Employee: " + empId + 
+                ", Received Distributions (after amount filter): " + received.size() + 
+                ", Filter Amount: " + amount);
+        for (Distribution d : received) {
+            System.out.println("  - Distribution ID: " + d.getAppDistributionId() + 
+                    ", Range: " + d.getAppStartNo() + "-" + d.getAppEndNo() + 
+                    ", Count: " + d.getTotalAppCount());
+        }
 
         // 3. Get ALL Distributions GIVEN AWAY by this user (what they distributed)
         List<Distribution> allGivenAway = distributionRepository.findByCreatedByAndYear(empId, acYearId);
 
-        // 4. Filter given away by amount
-        List<Distribution> givenAway = allGivenAway.stream()
+        // 3b. Also find distributions that OVERLAP with received ranges but have different issued_to_emp_id
+        // This catches cases where Admin/others updated and transferred apps away from this employee
+        // Example: Admin updates Zone 4004's distribution, taking 25 apps and giving to Zone 4011
+        // The new distribution has created_by = Admin, but it overlaps with Zone 4004's received range
+        // CRITICAL: Only count as "taken away" if the overlapping distribution was created AFTER the received distribution
+        // OR if it represents apps that were actually taken from this employee's original range
+        List<Distribution> overlappingTakenAway = new java.util.ArrayList<>();
+        for (Distribution receivedDist : received) {
+            int receivedStart = (int) receivedDist.getAppStartNo();
+            int receivedEnd = (int) receivedDist.getAppEndNo();
+            
+            // Find all active distributions that overlap with this received range
+            List<Distribution> overlapping = distributionRepository.findOverlappingDistributions(
+                    acYearId, receivedStart, receivedEnd);
+            
+            for (Distribution overlap : overlapping) {
+                // Only include if:
+                // 1. Same amount
+                // 2. Different issued_to_emp_id (apps were given to someone else)
+                // 3. Active
+                // 4. Not already in allGivenAway (avoid duplicates)
+                // 5. CRITICAL: The overlap must be WITHIN the received range (not just overlapping)
+                //    AND it must represent apps that were actually taken from this employee
+                //    This means: overlap.start >= receivedStart AND overlap.end <= receivedEnd
+                //    OR the overlap was created by someone else (Admin) and represents a transfer
+                int overlapStart = (int) overlap.getAppStartNo();
+                int overlapEnd = (int) overlap.getAppEndNo();
+                
+                // Check if this overlap is actually WITHIN the received range (overlap is subset of received)
+                // This means: overlap.start >= receivedStart AND overlap.end <= receivedEnd
+                boolean isWithinReceivedRange = overlapStart >= receivedStart && overlapEnd <= receivedEnd;
+                
+                // CRITICAL: EXCLUDE if the overlap CONTAINS the received range (remainder distributions)
+                // Example: Received: 2875052-2875076, Overlap: 2875002-2875101 (remainder for Zone 4004)
+                // This should NOT be counted as "given away" for Zone 4011
+                boolean overlapContainsReceived = overlapStart <= receivedStart && overlapEnd >= receivedEnd;
+                
+                // Check if it was created by Admin/CO (represents a transfer/update)
+                boolean isAdminTransfer = overlap.getCreated_by() != empId &&
+                        overlap.getIssuedByType() != null &&
+                        overlap.getIssuedByType().getAppIssuedId() == 1; // Admin/CO type
+                
+                // Only count as "taken away" if:
+                // 1. The overlap is WITHIN the received range (subset), AND
+                // 2. It was created by Admin (transfer), AND
+                // 3. It does NOT contain the received range (exclude remainders)
+                boolean shouldCountAsTakenAway = isWithinReceivedRange && 
+                        isAdminTransfer && 
+                        !overlapContainsReceived;
+                
+                if (Math.abs(overlap.getAmount() - amount) < 0.01 &&
+                    overlap.getIssued_to_emp_id() != null &&
+                    !overlap.getIssued_to_emp_id().equals(empId) &&
+                    overlap.getIsActive() == 1 &&
+                    !allGivenAway.contains(overlap) &&
+                    shouldCountAsTakenAway) {
+                    overlappingTakenAway.add(overlap);
+                    System.out.println("DEBUG: Found overlapping distribution taken away - ID: " + 
+                            overlap.getAppDistributionId() + ", Range: " + 
+                            overlap.getAppStartNo() + "-" + overlap.getAppEndNo() + 
+                            ", Issued to: " + overlap.getIssued_to_emp_id() + 
+                            ", Created by: " + overlap.getCreated_by() +
+                            ", IsWithinReceived: " + isWithinReceivedRange +
+                            ", IsAdminTransfer: " + isAdminTransfer);
+                } else {
+                    System.out.println("DEBUG: Excluding overlapping distribution - ID: " + 
+                            overlap.getAppDistributionId() + ", Range: " + 
+                            overlap.getAppStartNo() + "-" + overlap.getAppEndNo() + 
+                            ", Issued to: " + overlap.getIssued_to_emp_id() + 
+                            ", Created by: " + overlap.getCreated_by() +
+                            " (not taken from this employee)");
+                }
+            }
+        }
+
+        // 4. Combine both lists and filter by amount
+        // NOTE: BalanceTrack represents AVAILABLE stock for distribution
+        // So ALL distributions (including DGM Type 3 and Campus Type 4) ARE subtracted
+        // because they're no longer available for the Zone/DGM to distribute
+        // The Distribution table shows total holdings (including what's with DGM/Campus)
+        // But BalanceTrack shows what's actually available to distribute
+        List<Distribution> givenAway = new java.util.ArrayList<>(allGivenAway);
+        givenAway.addAll(overlappingTakenAway);
+        givenAway = givenAway.stream()
                 .filter(d -> Math.abs(d.getAmount() - amount) < 0.01)
                 .sorted((d1, d2) -> Long.compare(d1.getAppStartNo(), d2.getAppStartNo()))
                 .toList();
@@ -813,8 +1106,13 @@ public class ZoneService {
 
         // 7. Calculate remaining ranges by subtracting given away from received
         if (received.isEmpty()) {
-            System.out.println("WARNING: No received distributions found for Employee " + empId + " with amount "
-                    + amount);
+            System.out.println("⚠️ WARNING: No received distributions found for Employee " + empId + 
+                    " with amount " + amount + " in academic year " + acYearId);
+            System.out.println("  This might indicate:");
+            System.out.println("    1. The distribution was not created yet (timing issue)");
+            System.out.println("    2. The amount doesn't match (expected: " + amount + ")");
+            System.out.println("    3. The distribution is inactive");
+            System.out.println("    4. The employee ID doesn't match");
             // We need a zero-balance active record
             BalanceTrack nb;
             if (!reusePool.isEmpty()) {

@@ -46,6 +46,19 @@ public interface BalanceTrackRepository extends JpaRepository<BalanceTrack, Inte
                         @Param("empId") int empId,
                         @Param("amount") Float amount);
 
+        // Read-only version without lock for GET endpoints
+        @Query("SELECT b FROM BalanceTrack b WHERE " +
+                        "b.academicYear.acdcYearId = :yearId " +
+                        "AND b.employee.emp_id = :empId " +
+                        "AND b.isActive = 1 " +
+                        "AND b.amount = :amount " +
+                        "AND b.appAvblCnt > 0 " +
+                        "ORDER BY b.appFrom ASC")
+        List<BalanceTrack> findActiveBalancesByEmpAndAmountReadOnly(
+                        @Param("yearId") int yearId,
+                        @Param("empId") int empId,
+                        @Param("amount") Float amount);
+
         @Lock(LockModeType.PESSIMISTIC_WRITE)
         @Query("SELECT b FROM BalanceTrack b WHERE " + "b.academicYear.acdcYearId = :yearId "
                         + "AND b.employee.emp_id = :empId " + "AND b.amount = :amount " + "AND b.isActive = 1 "
@@ -153,4 +166,12 @@ public interface BalanceTrackRepository extends JpaRepository<BalanceTrack, Inte
                         @Param("empId") Integer empId,
                         @Param("academicYearId") Integer academicYearId,
                         @Param("amount") Double amount);
+
+        // Find the next available start number (appFrom) for an employee
+        // Returns the minimum appFrom from active balance tracks matching the criteria
+        @Query("SELECT MIN(b.appFrom) FROM BalanceTrack b WHERE b.employee.emp_id = :employeeId AND b.academicYear.acdcYearId = :academicYearId AND b.amount = :amount AND b.isActive = 1 AND b.appAvblCnt > 0")
+        Optional<Integer> findNextAvailableStart(
+                        @Param("employeeId") int employeeId,
+                        @Param("academicYearId") int academicYearId,
+                        @Param("amount") Float amount);
 }

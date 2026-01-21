@@ -717,4 +717,31 @@ public interface DistributionRepository extends JpaRepository<Distribution, Inte
 			@Param("dgmEmpId") Integer dgmEmpId,
 			@Param("campusIds") List<Integer> campusIds);
 
+	@Query("SELECT d FROM Distribution d WHERE d.created_by = :issuerId AND d.academicYear.acdcYearId = :yearId AND d.amount = :amount AND d.appStartNo <= :endNo AND d.appEndNo >= :startNo AND d.isActive = 1")
+	List<Distribution> findSubDistributionsInRange(
+			@Param("issuerId") int issuerId,
+			@Param("yearId") int yearId,
+			@Param("amount") Float amount,
+			@Param("startNo") int startNo,
+			@Param("endNo") int endNo);
+
+	// Find the parent distribution record that should be "consumed" when distributing applications
+	// This finds the active distribution record received by the issuer that starts at the requested start number
+	@Query("SELECT d FROM Distribution d WHERE d.issued_to_emp_id = :empId AND d.academicYear.acdcYearId = :yearId AND d.amount = :amount AND d.isActive = 1 AND d.appStartNo = :startNo ORDER BY d.appStartNo ASC")
+	Optional<Distribution> findParentToConsume(
+			@Param("empId") int empId,
+			@Param("yearId") int yearId,
+			@Param("amount") Float amount,
+			@Param("startNo") int startNo);
+
+	// Find the parent distribution that CONTAINS the given range (for remainder creation)
+	// This finds active distributions received by the issuer that contain the entire range being distributed
+	@Query("SELECT d FROM Distribution d WHERE d.issued_to_emp_id = :empId AND d.academicYear.acdcYearId = :yearId AND d.amount = :amount AND d.isActive = 1 AND d.appStartNo <= :startNo AND d.appEndNo >= :endNo ORDER BY d.appStartNo ASC")
+	List<Distribution> findParentContainingRange(
+			@Param("empId") int empId,
+			@Param("yearId") int yearId,
+			@Param("amount") Float amount,
+			@Param("startNo") int startNo,
+			@Param("endNo") int endNo);
+
 }

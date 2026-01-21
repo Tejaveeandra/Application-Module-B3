@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
  
 import com.application.dto.DistributionGetTableDTO;
+import com.application.dto.AppSeriesDTO;
 import com.application.entity.AdminApp;
 import com.application.entity.Distribution;
 import com.application.repository.AdminAppRepository;
@@ -17,7 +18,9 @@ import com.application.repository.CityRepository;
 import com.application.repository.EmployeeRepository; // 🎯 New Import
 import com.application.repository.CampusProViewRepository;
 import com.application.repository.ProDetailsRepository;
+import com.application.repository.AppStatusTrackViewRepository;
 import com.application.entity.CampusProView;
+import java.util.Optional;
  
 @Service
 public class DistributionGetTableService {
@@ -51,6 +54,9 @@ public class DistributionGetTableService {
     
     @Autowired
     private ProDetailsRepository proDetailsRepository;
+    
+    @Autowired
+    private AppStatusTrackViewRepository appStatusTrackViewRepository;
     
 //    @Cacheable(value = "distributionsByEmployee", key = "#empId")
     public List<DistributionGetTableDTO> getDistributionsByEmployeeAndIssuedToType(int empId, int issuedToTypeId) {
@@ -236,6 +242,185 @@ public class DistributionGetTableService {
         }
         
         return null;
+    }
+
+    /**
+     * Get continuous series of applications with status "WITH PRO" within a range
+     * Splits the range into multiple series if there are gaps (non-WITH PRO statuses)
+     * 
+     * Example: Range 1-10, but app 5 is sold/unavailable/damaged/confirmed
+     * Returns: [1-4] and [6-10] as separate series
+     * 
+     * @param distributionId The distribution ID to look up
+     * @param appStartNo Start number of the range to check
+     * @param appEndNo End number of the range to check
+     * @param issuedToTypeId The issued to type ID (to validate against distribution)
+     * @return List of continuous series (ranges) where all apps have status "WITH PRO"
+     */
+    public List<AppSeriesDTO> getProSeriesByDistribution(
+            int distributionId,
+            Integer appStartNo,
+            Integer appEndNo,
+            Integer issuedToTypeId) {
+        
+        try {
+            System.out.println("========================================");
+            System.out.println("📋 PRO SERIES BY DISTRIBUTION SERVICE CALLED");
+            System.out.println("========================================");
+            System.out.println("Input Parameters:");
+            System.out.println("  - Distribution ID: " + distributionId);
+            System.out.println("  - App Start No: " + appStartNo);
+            System.out.println("  - App End No: " + appEndNo);
+            System.out.println("  - Issued To Type ID: " + issuedToTypeId);
+            System.out.println("----------------------------------------");
+            System.out.flush();
+            
+            // 1. Fetch the distribution record
+            Optional<Distribution> distOpt = distributionRepository.findById(distributionId);
+            if (distOpt.isEmpty()) {
+                System.out.println("❌ Distribution record not found with ID: " + distributionId);
+                System.out.println("========================================");
+                System.out.flush();
+                return java.util.Collections.emptyList();
+            }
+            
+            Distribution distribution = distOpt.get();
+            Integer receiverEmpId = distribution.getIssued_to_emp_id();
+            Integer receiverProId = distribution.getIssued_to_pro_id();
+            Integer distIssuedToTypeId = distribution.getIssuedToType() != null ? 
+                    distribution.getIssuedToType().getAppIssuedId() : null;
+            
+            System.out.println("📊 Distribution Record Details:");
+            System.out.println("  - Distribution ID: " + distribution.getAppDistributionId());
+            System.out.println("  - Range: " + distribution.getAppStartNo() + " - " + distribution.getAppEndNo());
+            System.out.println("  - Receiver Employee ID: " + receiverEmpId);
+            System.out.println("  - Receiver PRO ID: " + receiverProId);
+            System.out.println("  - Distribution Issued To Type ID: " + distIssuedToTypeId);
+            System.out.println("----------------------------------------");
+            System.out.flush();
+            
+            // Validate issuedToTypeId matches the distribution
+            if (distIssuedToTypeId == null || !distIssuedToTypeId.equals(issuedToTypeId)) {
+                System.out.println("⚠️ Warning: Issued To Type ID mismatch!");
+                System.out.println("  - Provided: " + issuedToTypeId);
+                System.out.println("  - Distribution has: " + distIssuedToTypeId);
+                System.out.println("  - Continuing with provided parameter...");
+                System.out.flush();
+            }
+            
+            // 2. Query AppStatusTrackView for applications in the range with status "WITH PRO"
+            System.out.println("🔍 Step 1: Finding applications with status 'WITH PRO' in range: " + 
+                    appStartNo + " - " + appEndNo);
+            System.out.println("Query: SELECT a FROM AppStatusTrackView a");
+            System.out.println("  WHERE a.num >= " + appStartNo);
+            System.out.println("    AND a.num <= " + appEndNo);
+            System.out.println("    AND a.status = 'WITH PRO' (or 'with pro' or 'with_pro')");
+            System.out.flush();
+            
+            // Query all applications in the range
+            List<com.application.entity.AppStatusTrackView> allApps = appStatusTrackViewRepository
+                    .findByApplicationNumberRange(appStartNo, appEndNo);
+            
+            System.out.println("📊 Total applications found in range: " + allApps.size());
+            
+            // Filter to only "WITH PRO" status (handle variations: "with pro", "withpro", "with_pro", "WITH PRO")
+            List<com.application.entity.AppStatusTrackView> proApps = allApps.stream()
+                    .filter(app -> {
+                        String status = app.getStatus();
+                        if (status == null) return false;
+                        String normalizedStatus = status.trim().toLowerCase().replace("_", " ").replaceAll("\\s+", " ");
+                        return normalizedStatus.equals("with pro");
+                    })
+                    .sorted((a, b) -> Integer.compare(a.getNum(), b.getNum()))
+                    .collect(java.util.stream.Collectors.toList());
+            
+            System.out.println("📊 Applications with status 'WITH PRO': " + proApps.size());
+            System.out.flush();
+            
+            // 3. Find continuous series (ranges where all apps are PRO)
+            List<AppSeriesDTO> series = new java.util.ArrayList<>();
+            
+            if (proApps.isEmpty()) {
+                System.out.println("⚠️ No applications with status 'WITH PRO' found in range " + 
+                        appStartNo + " - " + appEndNo);
+                System.out.println("========================================");
+                System.out.flush();
+                return series;
+            }
+            
+            System.out.println("🔍 Step 2: Finding continuous series...");
+            System.out.flush();
+            
+            // Build a set of "WITH PRO" application numbers for quick lookup
+            java.util.Set<Integer> withProNumbers = proApps.stream()
+                    .map(com.application.entity.AppStatusTrackView::getNum)
+                    .collect(java.util.stream.Collectors.toSet());
+            
+            // Find continuous series
+            int currentSeriesStart = -1;
+            int currentSeriesEnd = -1;
+            
+            for (int appNo = appStartNo; appNo <= appEndNo; appNo++) {
+                if (withProNumbers.contains(appNo)) {
+                    // This app is WITH PRO
+                    if (currentSeriesStart == -1) {
+                        // Start a new series
+                        currentSeriesStart = appNo;
+                        currentSeriesEnd = appNo;
+                    } else {
+                        // Continue the current series
+                        currentSeriesEnd = appNo;
+                    }
+                } else {
+                    // This app is NOT WITH PRO - end the current series if one exists
+                    if (currentSeriesStart != -1) {
+                        // Save the current series
+                        int count = currentSeriesEnd - currentSeriesStart + 1;
+                        String displaySeries = currentSeriesStart + " - " + currentSeriesEnd;
+                        AppSeriesDTO seriesDto = new AppSeriesDTO(displaySeries, currentSeriesStart, 
+                                currentSeriesEnd, count);
+                        series.add(seriesDto);
+                        System.out.println("  ✅ Series found: " + displaySeries + " (" + count + " apps)");
+                        System.out.flush();
+                        
+                        // Reset for next series
+                        currentSeriesStart = -1;
+                        currentSeriesEnd = -1;
+                    }
+                }
+            }
+            
+            // Don't forget the last series if it ends at appEndNo
+            if (currentSeriesStart != -1) {
+                int count = currentSeriesEnd - currentSeriesStart + 1;
+                String displaySeries = currentSeriesStart + " - " + currentSeriesEnd;
+                AppSeriesDTO seriesDto = new AppSeriesDTO(displaySeries, currentSeriesStart, 
+                        currentSeriesEnd, count);
+                series.add(seriesDto);
+                System.out.println("  ✅ Series found: " + displaySeries + " (" + count + " apps)");
+                System.out.flush();
+            }
+            
+            System.out.println("----------------------------------------");
+            System.out.println("✅ Final Result:");
+            System.out.println("  Total Series Found: " + series.size());
+            for (int i = 0; i < series.size(); i++) {
+                AppSeriesDTO s = series.get(i);
+                System.out.println("  [" + (i + 1) + "] " + s.getDisplaySeries() + 
+                        " (Count: " + s.getAvailableCount() + ")");
+            }
+            System.out.println("========================================");
+            System.out.flush();
+            
+            return series;
+        } catch (Exception e) {
+            System.out.println("❌ ERROR in pro-series-by-distribution service:");
+            System.out.println("  Exception: " + e.getClass().getName());
+            System.out.println("  Message: " + e.getMessage());
+            e.printStackTrace();
+            System.out.flush();
+            return java.util.Collections.emptyList();
+        }
     }
 
 }

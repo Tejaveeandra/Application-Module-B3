@@ -5,6 +5,7 @@ import java.util.Optional;
  
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -24,8 +25,10 @@ import com.application.entity.District;
 import com.application.entity.State;
 import com.application.entity.Zone;
 import com.application.repository.BalanceTrackRepository;
+import com.application.repository.DistributionRepository;
 import com.application.repository.EmployeeRepository;
 import com.application.repository.SchoolDetailsRepository;
+import com.application.entity.Distribution;
 import com.application.service.CampusService;
 import com.application.service.DgmService;
 import com.application.service.ZoneService;
@@ -49,6 +52,8 @@ public class DistributionGet {
     private ZoneService distributionService;
    
     @Autowired private BalanceTrackRepository balanceTrackRepository;
+    
+    @Autowired private DistributionRepository distributionRepository;
    
     DistributionGet(SchoolDetailsRepository schoolDetailsRepository) {
     }
@@ -347,6 +352,293 @@ public class DistributionGet {
         public ResponseEntity<List<DgmWithCampusesDTO>> getDgmWithCampuses(@PathVariable Integer employeeId) {
             List<DgmWithCampusesDTO> result = applicationService.getDgmWithCampusesByEmployeeId(employeeId);
             return ResponseEntity.ok(result);
+        }
+
+        @GetMapping("/next-available-no")
+        @Transactional(readOnly = true)
+        public ResponseEntity<Integer> getNextAvailableNo(
+                @RequestParam int academicYearId,
+                @RequestParam int employeeId,
+                @RequestParam Float amount) {
+            
+            try {
+                System.out.println("========================================");
+                System.out.println("📋 NEXT AVAILABLE NUMBER API CALLED");
+                System.out.println("========================================");
+                System.out.println("Input Parameters:");
+                System.out.println("  - Academic Year ID: " + academicYearId);
+                System.out.println("  - Employee ID (Sender/Issuer): " + employeeId);
+                System.out.println("  - Amount: " + amount);
+                System.out.println("----------------------------------------");
+                System.out.flush();
+                
+                // First, get all matching BalanceTrack records to show what data exists
+                System.out.println("🔍 Step 1: Finding all matching BalanceTrack records...");
+                System.out.println("Query: SELECT b FROM BalanceTrack b");
+                System.out.println("  WHERE b.employee.emp_id = " + employeeId);
+                System.out.println("    AND b.academicYear.acdcYearId = " + academicYearId);
+                System.out.println("    AND b.amount = " + amount);
+                System.out.println("    AND b.isActive = 1");
+                System.out.println("    AND b.appAvblCnt > 0");
+                System.out.flush();
+                
+                List<BalanceTrack> matchingRecords = balanceTrackRepository.findActiveBalancesByEmpAndAmountReadOnly(
+                        academicYearId, employeeId, amount);
+                
+                System.out.println("----------------------------------------");
+                System.out.println("📊 Matching BalanceTrack Records Found: " + matchingRecords.size());
+                System.out.flush();
+                
+                if (matchingRecords.isEmpty()) {
+                    System.out.println("  ❌ No records found in BalanceTrack table (sce_app_balance_trk)");
+                    System.out.println("  Table: sce_application.sce_app_balance_trk");
+                    System.out.println("  Filters:");
+                    System.out.println("    - emp_id = " + employeeId);
+                    System.out.println("    - acdc_year_id = " + academicYearId);
+                    System.out.println("    - amount = " + amount);
+                    System.out.println("    - is_active = 1");
+                    System.out.println("    - app_avbl_cnt > 0");
+                } else {
+                    System.out.println("  ✅ Found " + matchingRecords.size() + " record(s):");
+                    for (int i = 0; i < matchingRecords.size(); i++) {
+                        BalanceTrack bt = matchingRecords.get(i);
+                        System.out.println("  [" + (i + 1) + "] BalanceTrack ID: " + bt.getAppBalanceTrkId());
+                        System.out.println("      - app_from: " + bt.getAppFrom());
+                        System.out.println("      - app_to: " + bt.getAppTo());
+                        System.out.println("      - app_avbl_cnt: " + bt.getAppAvblCnt());
+                        System.out.println("      - amount: " + bt.getAmount());
+                        System.out.println("      - is_active: " + bt.getIsActive());
+                    }
+                }
+                System.out.flush();
+                
+                // Now get the MIN value
+                System.out.println("----------------------------------------");
+                System.out.println("🔍 Step 2: Finding MIN(appFrom) from matching records...");
+                System.out.println("Query: SELECT MIN(b.appFrom) FROM BalanceTrack b");
+                System.out.println("  WHERE b.employee.emp_id = " + employeeId);
+                System.out.println("    AND b.academicYear.acdcYearId = " + academicYearId);
+                System.out.println("    AND b.amount = " + amount);
+                System.out.println("    AND b.isActive = 1");
+                System.out.println("    AND b.appAvblCnt > 0");
+                System.out.flush();
+                
+                Integer nextAvailable = balanceTrackRepository.findNextAvailableStart(academicYearId, employeeId, amount)
+                        .orElse(0);
+                
+                System.out.println("----------------------------------------");
+                System.out.println("✅ Final Result:");
+                if (nextAvailable != null && nextAvailable > 0) {
+                    System.out.println("  Next Available Start Number: " + nextAvailable);
+                    System.out.println("  Source: BalanceTrack table (sce_app_balance_trk)");
+                    System.out.println("  Calculation: MIN(appFrom) from " + matchingRecords.size() + " matching record(s)");
+                    if (!matchingRecords.isEmpty()) {
+                        System.out.println("  Selected from record(s) with appFrom values:");
+                        matchingRecords.forEach(bt -> 
+                            System.out.println("    - " + bt.getAppFrom() + " (BalanceTrack ID: " + bt.getAppBalanceTrkId() + ")")
+                        );
+                        System.out.println("  Minimum value: " + nextAvailable);
+                    }
+                } else {
+                    System.out.println("  Next Available Start Number: 0");
+                    System.out.println("  Reason: No matching records found or all have appFrom = 0");
+                    System.out.println("  Check BalanceTrack table for:");
+                    System.out.println("    - emp_id = " + employeeId);
+                    System.out.println("    - acdc_year_id = " + academicYearId);
+                    System.out.println("    - amount = " + amount);
+                    System.out.println("    - is_active = 1");
+                    System.out.println("    - app_avbl_cnt > 0");
+                }
+                System.out.println("========================================");
+                System.out.flush();
+                
+                return ResponseEntity.ok(nextAvailable);
+            } catch (Exception e) {
+                System.out.println("❌ ERROR in next-available-no API:");
+                System.out.println("  Exception: " + e.getClass().getName());
+                System.out.println("  Message: " + e.getMessage());
+                e.printStackTrace();
+                System.out.flush();
+                return ResponseEntity.ok(0);
+            }
+        }
+
+        /**
+         * Get next available number for the RECEIVER of a distribution record
+         * This is useful when updating a distribution - you need to know what the receiver
+         * actually has available after their sub-distributions
+         * 
+         * Example: Admin→Zone distribution, Zone has distributed some to DGM,
+         * this returns what Zone has available now (from BalanceTrack)
+         * 
+         * @param distributionId The distribution ID to look up
+         * @param appStartNo Optional: Filter BalanceTrack records to only those that overlap with this start number
+         * @param appEndNo Optional: Filter BalanceTrack records to only those that overlap with this end number
+         */
+        @GetMapping("/next-available-no-by-distribution/{distributionId}")
+        @Transactional(readOnly = true)
+        public ResponseEntity<Integer> getNextAvailableNoByDistribution(
+                @PathVariable int distributionId,
+                @RequestParam(required = true) Integer appStartNo,
+                @RequestParam(required = true) Integer appEndNo) {
+            
+            try {
+                System.out.println("========================================");
+                System.out.println("📋 NEXT AVAILABLE NUMBER BY DISTRIBUTION ID API CALLED");
+                System.out.println("========================================");
+                System.out.println("Input Parameter:");
+                System.out.println("  - Distribution ID: " + distributionId);
+                System.out.println("----------------------------------------");
+                System.out.flush();
+                
+                // 1. Fetch the distribution record
+                Optional<Distribution> distOpt = distributionRepository.findById(distributionId);
+                if (distOpt.isEmpty()) {
+                    System.out.println("❌ Distribution record not found with ID: " + distributionId);
+                    System.out.println("========================================");
+                    System.out.flush();
+                    return ResponseEntity.ok(0);
+                }
+                
+                Distribution distribution = distOpt.get();
+                Integer receiverEmpId = distribution.getIssued_to_emp_id();
+                Integer academicYearId = distribution.getAcademicYear() != null ? 
+                        distribution.getAcademicYear().getAcdcYearId() : null;
+                Float amount = distribution.getAmount();
+                
+                System.out.println("📊 Distribution Record Details:");
+                System.out.println("  - Distribution ID: " + distribution.getAppDistributionId());
+                System.out.println("  - Range: " + distribution.getAppStartNo() + " - " + distribution.getAppEndNo());
+                System.out.println("  - Receiver Employee ID: " + receiverEmpId);
+                System.out.println("  - Academic Year ID: " + academicYearId);
+                System.out.println("  - Amount: " + amount);
+                System.out.println("----------------------------------------");
+                System.out.flush();
+                
+                if (receiverEmpId == null) {
+                    System.out.println("❌ No receiver employee ID found in distribution record");
+                    System.out.println("  This distribution may be for a PRO (issued_to_pro_id)");
+                    System.out.println("========================================");
+                    System.out.flush();
+                    return ResponseEntity.ok(0);
+                }
+                
+                if (academicYearId == null) {
+                    System.out.println("❌ No academic year ID found in distribution record");
+                    System.out.println("========================================");
+                    System.out.flush();
+                    return ResponseEntity.ok(0);
+                }
+                
+                if (amount == null) {
+                    System.out.println("❌ No amount found in distribution record");
+                    System.out.println("========================================");
+                    System.out.flush();
+                    return ResponseEntity.ok(0);
+                }
+                
+                // 2. Get all matching BalanceTrack records for the RECEIVER
+                System.out.println("🔍 Step 1: Finding BalanceTrack records for RECEIVER...");
+                System.out.println("Receiver Employee ID: " + receiverEmpId);
+                System.out.println("Query: SELECT b FROM BalanceTrack b");
+                System.out.println("  WHERE b.employee.emp_id = " + receiverEmpId);
+                System.out.println("    AND b.academicYear.acdcYearId = " + academicYearId);
+                System.out.println("    AND b.amount = " + amount);
+                System.out.println("    AND b.isActive = 1");
+                System.out.println("    AND b.appAvblCnt > 0");
+                System.out.flush();
+                
+                List<BalanceTrack> matchingRecords = balanceTrackRepository.findActiveBalancesByEmpAndAmountReadOnly(
+                        academicYearId, receiverEmpId, amount);
+                
+                System.out.println("----------------------------------------");
+                System.out.println("📊 Matching BalanceTrack Records Found (before range filter): " + matchingRecords.size());
+                System.out.flush();
+                
+                // Filter by range if provided
+                if (appStartNo != null && appEndNo != null) {
+                    System.out.println("🔍 Filtering BalanceTrack records by range: " + appStartNo + " - " + appEndNo);
+                    matchingRecords = matchingRecords.stream()
+                            .filter(bt -> {
+                                // Check if BalanceTrack range overlaps with the requested range
+                                int btStart = bt.getAppFrom();
+                                int btEnd = bt.getAppTo();
+                                boolean overlaps = btStart <= appEndNo && btEnd >= appStartNo;
+                                if (overlaps) {
+                                    System.out.println("  ✅ BalanceTrack ID: " + bt.getAppBalanceTrkId() + 
+                                            ", Range: " + btStart + "-" + btEnd + " overlaps with " + 
+                                            appStartNo + "-" + appEndNo);
+                                } else {
+                                    System.out.println("  ⏭️ BalanceTrack ID: " + bt.getAppBalanceTrkId() + 
+                                            ", Range: " + btStart + "-" + btEnd + " does NOT overlap with " + 
+                                            appStartNo + "-" + appEndNo);
+                                }
+                                return overlaps;
+                            })
+                            .collect(java.util.stream.Collectors.toList());
+                    System.out.println("📊 Matching BalanceTrack Records Found (after range filter): " + matchingRecords.size());
+                    System.out.flush();
+                }
+                
+                // Get the minimum appFrom from the records we already fetched
+                Integer nextAvailable = 0;
+                if (!matchingRecords.isEmpty()) {
+                    nextAvailable = matchingRecords.stream()
+                            .mapToInt(BalanceTrack::getAppFrom)
+                            .min()
+                            .orElse(0);
+                    
+                    System.out.println("  ✅ Found " + matchingRecords.size() + " record(s) for RECEIVER:");
+                    for (int i = 0; i < matchingRecords.size(); i++) {
+                        BalanceTrack bt = matchingRecords.get(i);
+                        System.out.println("  [" + (i + 1) + "] BalanceTrack ID: " + bt.getAppBalanceTrkId());
+                        System.out.println("      - app_from: " + bt.getAppFrom());
+                    }
+                    System.out.println("----------------------------------------");
+                    System.out.println("✅ Final Result: " + nextAvailable);
+                    System.out.println("  Source: BalanceTrack table (sce_app_balance_trk)");
+                    System.out.println("========================================");
+                } else {
+                    System.out.println("  ❌ No records found in BalanceTrack table for RECEIVER");
+                    System.out.println("========================================");
+                }
+                System.out.flush();
+                
+                return ResponseEntity.ok(nextAvailable);
+            } catch (Exception e) {
+                System.out.println("❌ ERROR in next-available-no-by-distribution API:");
+                System.out.println("  Exception: " + e.getClass().getName());
+                System.out.println("  Message: " + e.getMessage());
+                e.printStackTrace();
+                System.out.flush();
+                return ResponseEntity.ok(0);
+            }
+        }
+
+        /**
+         * Get continuous series of applications with status "WITH PRO" within a range
+         * Splits the range into multiple series if there are gaps (non-WITH PRO statuses)
+         * 
+         * Example: Range 1-10, but app 5 is sold/unavailable/damaged/confirmed
+         * Returns: [1-4] and [6-10] as separate series
+         * 
+         * @param distributionId The distribution ID to look up
+         * @param appStartNo Start number of the range to check
+         * @param appEndNo End number of the range to check
+         * @param issuedToTypeId The issued to type ID (to filter by receiver type)
+         * @return List of continuous series (ranges) where all apps have status "WITH PRO"
+         */
+        @GetMapping("/pro-series-by-distribution/{distributionId}")
+        @Transactional(readOnly = true)
+        public ResponseEntity<List<AppSeriesDTO>> getProSeriesByDistribution(
+                @PathVariable int distributionId,
+                @RequestParam(required = true) Integer appStartNo,
+                @RequestParam(required = true) Integer appEndNo,
+                @RequestParam(required = true) Integer issuedToTypeId) {
+            
+            List<AppSeriesDTO> series = distributionGetTableService.getProSeriesByDistribution(
+                    distributionId, appStartNo, appEndNo, issuedToTypeId);
+            return ResponseEntity.ok(series);
         }
 
        

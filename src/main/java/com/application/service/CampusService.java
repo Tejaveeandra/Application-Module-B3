@@ -313,6 +313,30 @@ public class CampusService {
             distribution.setIssued_to_emp_id(null);
         }
 
+        // --- CONSUMABLE STOCK LOGIC DISABLED ---
+        // DISABLED: The consumable stock logic was modifying parent distribution records
+        // when DGM distributes to Campus. This caused parent records to be overwritten/updated
+        // when they should remain as static history.
+        // 
+        // If consumable stock is needed in the future, it should only apply to specific flows
+        // and should not modify parent distributions during POST (create) operations.
+        // 
+        // Original logic commented out:
+        // int consumedCount = endNo - startNo + 1;
+        // Optional<Distribution> parentOpt = distributionRepository.findParentToConsume(
+        //         dgmUserId, formDto.getAcademicYearId(), formDto.getApplication_Amount(), startNo);
+        // if (parentOpt.isPresent()) {
+        //     Distribution parent = parentOpt.get();
+        //     parent.setAppStartNo(endNo + 1);
+        //     parent.setTotalAppCount(parent.getTotalAppCount() - consumedCount);
+        //     if (parent.getTotalAppCount() <= 0) {
+        //         parent.setIsActive(0);
+        //     } else {
+        //         distributionRepository.save(parent);
+        //     }
+        // }
+        // --- CONSUMABLE STOCK LOGIC DISABLED ---
+
         // 5. Save and Flush
         System.out.println("=== DISTRIBUTION SAVE (NEW) - CampusService ===");
         System.out.println("Operation: CREATE NEW DISTRIBUTION");
