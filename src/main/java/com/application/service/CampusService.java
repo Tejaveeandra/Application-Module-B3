@@ -1127,58 +1127,53 @@ public class CampusService {
                 allRemainingRanges.addAll(remainingRanges);
             }
             
-            // MERGE all remaining ranges into a SINGLE record (even if there are gaps)
-            // This matches the distribution table behavior where a single combined record is shown
+            // Create separate balance track records for each remaining range
+            // This allows tracking of separate series even if there are gaps
             if (!allRemainingRanges.isEmpty()) {
                 // Sort by start number
                 allRemainingRanges.sort((a, b) -> Integer.compare(a[0], b[0]));
                 
-                // Calculate overall range: from first start to last end
-                int overallStart = allRemainingRanges.get(0)[0];
-                int overallEnd = allRemainingRanges.get(allRemainingRanges.size() - 1)[1];
+                System.out.println("--- LOG: Creating " + allRemainingRanges.size() + 
+                        " separate balance track record(s) for remaining ranges:");
                 
-                // Calculate total count across ALL remaining ranges (sum of all ranges, not range size)
-                int totalCount = allRemainingRanges.stream()
-                        .mapToInt(range -> range[1] - range[0] + 1)
-                        .sum();
-                
-                System.out.println("--- LOG: Combining " + allRemainingRanges.size() + 
-                        " remaining range(s) into SINGLE balance track record:");
+                // Create/Reuse balance tracks for EACH remaining range separately
                 for (int[] range : allRemainingRanges) {
-                    System.out.println("    - Range: " + range[0] + " - " + range[1] + 
-                            " (" + (range[1] - range[0] + 1) + " apps)");
-                }
-                System.out.println("  ✅ Creating SINGLE combined balance track: " + overallStart + " - " + 
-                        overallEnd + " (" + totalCount + " apps total)");
-                
-                // Create/Reuse balance track for SINGLE COMBINED range
-                BalanceTrack nb;
-                if (!reusePool.isEmpty()) {
-                    nb = reusePool.poll(); // Reuse
-                } else {
-                    nb = createNewBalanceTrack(empId, acYearId, typeId, createdBy, false);
-                    nb.setAmount(amount);
-                }
+                    int remainingStart = range[0];
+                    int remainingEnd = range[1];
+                    int remainingCount = remainingEnd - remainingStart + 1;
 
-                nb.setAppAvblCnt(totalCount); // Use total count, not range size
+                    System.out.println(
+                            "--- LOG: Creating/Reusing Balance Track for range: " + remainingStart + "-"
+                                    + remainingEnd + " (" + remainingCount + " apps)");
 
-                // If available count is 0, set app_from = 0, app_to = 0, and is_active = 1
-                if (totalCount <= 0) {
-                    nb.setAppFrom(0);
-                    nb.setAppTo(0);
-                } else {
-                    nb.setAppFrom(overallStart);
-                    nb.setAppTo(overallEnd);
+                    BalanceTrack nb;
+                    if (!reusePool.isEmpty()) {
+                        nb = reusePool.poll(); // Reuse
+                    } else {
+                        nb = createNewBalanceTrack(empId, acYearId, typeId, createdBy, false);
+                        nb.setAmount(amount);
+                    }
+
+                    nb.setAppAvblCnt(remainingCount);
+
+                    // If available count is 0, set app_from = 0, app_to = 0, and is_active = 1
+                    if (remainingCount <= 0) {
+                        nb.setAppFrom(0);
+                        nb.setAppTo(0);
+                    } else {
+                        nb.setAppFrom(remainingStart);
+                        nb.setAppTo(remainingEnd);
+                    }
+                    // Keep is_active = 1 even when available count is 0 (show as available 0)
+                    nb.setIsActive(1);
+
+                    BalanceTrack saved = balanceTrackRepository.saveAndFlush(nb);
+                    atLeastOneActiveRowCreated = true;
+                    System.out.println(
+                            "--- LOG: Updated/Created Balance Track ID: " + saved.getAppBalanceTrkId() +
+                            ", Range: " + saved.getAppFrom() + "-" + saved.getAppTo() + 
+                            ", Count: " + saved.getAppAvblCnt());
                 }
-                // Keep is_active = 1 even when available count is 0 (show as available 0)
-                nb.setIsActive(1);
-
-                BalanceTrack saved = balanceTrackRepository.saveAndFlush(nb);
-                atLeastOneActiveRowCreated = true;
-                System.out.println(
-                        "--- LOG: Updated/Created SINGLE Balance Track ID: " + saved.getAppBalanceTrkId() +
-                        ", Combined Range: " + saved.getAppFrom() + "-" + saved.getAppTo() + 
-                        ", Total Count: " + saved.getAppAvblCnt() + " apps");
             }
         }
 
