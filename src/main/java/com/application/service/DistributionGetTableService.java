@@ -379,8 +379,12 @@ public class DistributionGetTableService {
                         String displaySeries = currentSeriesStart + " - " + currentSeriesEnd;
                         AppSeriesDTO seriesDto = new AppSeriesDTO(displaySeries, currentSeriesStart, 
                                 currentSeriesEnd, count);
+                        // Set master start and end from input parameters
+                        seriesDto.setMasterStartNo(appStartNo);
+                        seriesDto.setMasterEndNo(appEndNo);
                         series.add(seriesDto);
                         System.out.println("  ✅ Series found: " + displaySeries + " (" + count + " apps)");
+                        System.out.println("    Master Range: " + appStartNo + " - " + appEndNo);
                         System.out.flush();
                         
                         // Reset for next series
@@ -396,18 +400,24 @@ public class DistributionGetTableService {
                 String displaySeries = currentSeriesStart + " - " + currentSeriesEnd;
                 AppSeriesDTO seriesDto = new AppSeriesDTO(displaySeries, currentSeriesStart, 
                         currentSeriesEnd, count);
+                // Set master start and end from input parameters
+                seriesDto.setMasterStartNo(appStartNo);
+                seriesDto.setMasterEndNo(appEndNo);
                 series.add(seriesDto);
                 System.out.println("  ✅ Series found: " + displaySeries + " (" + count + " apps)");
+                System.out.println("    Master Range: " + appStartNo + " - " + appEndNo);
                 System.out.flush();
             }
             
             System.out.println("----------------------------------------");
             System.out.println("✅ Final Result:");
             System.out.println("  Total Series Found: " + series.size());
+            System.out.println("  Master Range (Input): " + appStartNo + " - " + appEndNo);
             for (int i = 0; i < series.size(); i++) {
                 AppSeriesDTO s = series.get(i);
                 System.out.println("  [" + (i + 1) + "] " + s.getDisplaySeries() + 
                         " (Count: " + s.getAvailableCount() + ")");
+                System.out.println("      Master Range: " + s.getMasterStartNo() + " - " + s.getMasterEndNo());
             }
             System.out.println("========================================");
             System.out.flush();

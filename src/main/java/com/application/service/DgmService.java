@@ -2699,6 +2699,34 @@ public class DgmService {
         int oldReceiverId = existingDistribution.getIssued_to_emp_id();
         int newReceiverId = formDto.getDgmEmployeeId();
         boolean isRecipientChanging = oldReceiverId != newReceiverId;
+        
+        // VALIDATION: Cannot update if:
+        // 1. Same campus + same employee (no change at all)
+        // 2. Different campus + same employee (DGM can handle this themselves, no Zone/Admin intervention needed)
+        // Get campus IDs for validation
+        // IMPORTANT: Use campus from distribution/formDto, NOT from employee's campus
+        Integer oldCampusId = existingDistribution.getCampus() != null ? 
+                existingDistribution.getCampus().getCampusId() : null;
+        
+        // Get new campus ID from the form (this is the campus being selected in the update)
+        Integer newCampusId = formDto.getCampusId() > 0 ? formDto.getCampusId() : null;
+        
+        // Block if same employee (DGM) - regardless of campus change
+        // Because DGM has access to both campuses and can distribute themselves
+        if (oldReceiverId == newReceiverId) {
+            if (newCampusId != null && oldCampusId != null && newCampusId.equals(oldCampusId)) {
+                // Same campus + same employee = no change at all
+                throw new RuntimeException(
+                        "Update Denied: Cannot update to the same campus and same employee. " +
+                        "Please select a different employee or different campus.");
+            } else if (newCampusId != null && oldCampusId != null && !newCampusId.equals(oldCampusId)) {
+                // Different campus + same employee = DGM can handle this themselves
+                throw new RuntimeException(
+                        "Update Denied: Cannot update to a different campus for the same DGM. " +
+                        "The DGM has access to both campuses and can distribute themselves. " +
+                        "Please select a different employee.");
+            }
+        }
 
         int oldStart = (int) existingDistribution.getAppStartNo();
         int oldEnd = (int) existingDistribution.getAppEndNo();

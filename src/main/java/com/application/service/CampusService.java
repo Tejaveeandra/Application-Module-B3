@@ -448,9 +448,12 @@ public class CampusService {
 
     @Transactional
     public void updateDgmToCampusForm(@NonNull Integer distributionId, @NonNull DgmToCampusFormDTO formDto) {
+        System.out.println("========================================");
         System.out.println("--- LOG: START updateDgmToCampusForm ---");
         System.out.println("--- LOG: Dist ID: " + distributionId + ", User ID: " + formDto.getUserId() +
                 ", Target Range: " + formDto.getApplicationNoFrom() + "-" + formDto.getApplicationNoTo());
+        System.out.println("--- LOG: CRITICAL - This method should create ONLY ONE new distribution record");
+        System.out.println("========================================");
 
         // 1. Fetch Existing Record
         Distribution existingDistribution = distributionRepository.findById(distributionId)
@@ -483,12 +486,28 @@ public class CampusService {
         // Determine New IDs
         Integer newEmpId = (newReceiver.getIsOurEmp() == 1) ? newReceiver.getCmps_emp_id() : null;
         Integer newProId = (newReceiver.getIsOurEmp() == 0) ? newReceiver.getCmps_emp_id() : null;
+        
+        // Get campus IDs for validation
+        Integer newCampusId = newReceiver.getCmps_id();
+        Integer oldCampusId = existingDistribution.getCampus() != null ? 
+                existingDistribution.getCampus().getCampusId() : null;
 
         // Identify Changes
         Integer oldEmpId = existingDistribution.getIssued_to_emp_id();
         Integer oldProId = existingDistribution.getIssued_to_pro_id();
         boolean isRecipientChanging = !java.util.Objects.equals(oldEmpId, newEmpId)
                 || !java.util.Objects.equals(oldProId, newProId);
+        
+        // VALIDATION: Cannot update to same campus + same PRO
+        // Only allow update if campus is different OR PRO is different
+        if (newCampusId != null && oldCampusId != null && newCampusId.equals(oldCampusId)) {
+            // Same campus - check if PRO is also the same
+            if (java.util.Objects.equals(oldProId, newProId) && newProId != null) {
+                throw new RuntimeException(
+                        "Update Denied: Cannot update to the same campus and same PRO. " +
+                        "Please select a different PRO or different campus.");
+            }
+        }
 
         int oldStart = (int) existingDistribution.getAppStartNo();
         int oldEnd = (int) existingDistribution.getAppEndNo();
@@ -542,31 +561,146 @@ public class CampusService {
         distributionRepository.saveAndFlush(existingDistribution);
         System.out.println("========================================================");
 
-        // B. Create New
+        // B. Create New - ONLY ONE RECORD
+        // CRITICAL: Ensure we only create ONE distribution record, not multiple
+        // The formDto should contain a single continuous range
         Distribution newDist = new Distribution();
         mapDtoToDistribution(newDist, formDto, dgmUserTypeId);
         newDist.setIssued_to_emp_id(newEmpId);
         newDist.setIssued_to_pro_id(newProId);
         newDist.setAmount(originalAmount);
+        
+        // VALIDATION: Ensure the range is valid (start <= end)
+        if (newDist.getAppStartNo() > newDist.getAppEndNo()) {
+            throw new RuntimeException("Invalid range: Start (" + newDist.getAppStartNo() + 
+                    ") cannot be greater than End (" + newDist.getAppEndNo() + ")");
+        }
+        
+        // Calculate total count from the range
+        int calculatedCount = (int)(newDist.getAppEndNo() - newDist.getAppStartNo() + 1);
+        newDist.setTotalAppCount(calculatedCount);
+        
         System.out.println("=== DISTRIBUTION UPDATE (CREATE NEW) - CampusService ===");
-        System.out.println("Operation: CREATE NEW DISTRIBUTION (UPDATE)");
+        System.out.println("Operation: CREATE SINGLE NEW DISTRIBUTION (UPDATE)");
         System.out.println("New Range: " + newDist.getAppStartNo() + " - " + newDist.getAppEndNo());
+        System.out.println("New Total Count: " + newDist.getTotalAppCount() + " apps");
         System.out.println("New Receiver EmpId: " + newDist.getIssued_to_emp_id());
         System.out.println("New Receiver ProId: " + newDist.getIssued_to_pro_id());
         System.out.println("Amount: " + newDist.getAmount());
+        System.out.println("NOTE: Only ONE record should be created for this update");
         distributionRepository.saveAndFlush(newDist);
         System.out.println("New Distribution ID: " + newDist.getAppDistributionId());
         System.out.println("========================================================");
+        
+        // CRITICAL CHECK: Verify only ONE record was created for this update
+        // Check if any other active records exist with the same receiver, same amount, and overlapping range
+        // This helps detect if the update is creating duplicate records
+        List<Distribution> duplicateCheck = distributionRepository.findOverlappingDistributions(
+                academicYearId, (int)newDist.getAppStartNo(), (int)newDist.getAppEndNo());
+        List<Distribution> duplicates = duplicateCheck.stream()
+                .filter(d -> d.getAppDistributionId() != null && 
+                        !d.getAppDistributionId().equals(newDist.getAppDistributionId()) &&
+                        d.getIsActive() == 1 &&
+                        java.util.Objects.equals(d.getIssued_to_emp_id(), newDist.getIssued_to_emp_id()) &&
+                        java.util.Objects.equals(d.getIssued_to_pro_id(), newDist.getIssued_to_pro_id()) &&
+                        d.getAmount() != null && Math.abs(d.getAmount() - newDist.getAmount()) < 0.01 &&
+                        d.getCreated_by() == dgmUserId) // Same creator (same update operation)
+                .collect(java.util.stream.Collectors.toList());
+        
+        if (!duplicates.isEmpty()) {
+            System.out.println("⚠️ WARNING: Found " + duplicates.size() + " potential duplicate record(s) created in the same update:");
+            for (Distribution dup : duplicates) {
+                System.out.println("  - Distribution ID: " + dup.getAppDistributionId() + 
+                        ", Range: " + dup.getAppStartNo() + "-" + dup.getAppEndNo() + 
+                        ", Count: " + dup.getTotalAppCount() +
+                        ", IsActive: " + dup.getIsActive());
+            }
+            System.out.println("  ⚠️ This should not happen - only ONE record should be created per update");
+            System.out.println("  ⚠️ Please check if the update method is being called multiple times");
+        } else {
+            System.out.println("✅ VERIFIED: Only ONE new distribution record created (ID: " + newDist.getAppDistributionId() + ")");
+        }
 
         // 8. Handle Remainders (For Shrinking/Shifting)
+        // COMBINE all remainder ranges into a SINGLE record (like DGM and Zone updates)
         if (isRangeChanging) {
+            System.out.println("📊 Campus Remainder Creation Analysis:");
+            System.out.println("  Old Range: " + oldStart + " - " + oldEnd);
+            System.out.println("  New Range: " + newStart + " - " + newEnd);
+            System.out.println("  Old Receiver EmpId: " + existingDistribution.getIssued_to_emp_id());
+            System.out.println("  Old Receiver ProId: " + existingDistribution.getIssued_to_pro_id());
+            
+            // Collect all remainder ranges that should be created
+            java.util.List<int[]> remainderRanges = new java.util.ArrayList<>();
+            
+            // Check for portion BEFORE the new range
             if (oldStart < newStart) {
-                System.out.println("--- LOG: Creating standard start remainder.");
-                createAndSaveRemainder(existingDistribution, oldStart, newStart - 1);
+                int remainderStart = oldStart;
+                int remainderEnd = newStart - 1;
+                remainderRanges.add(new int[]{remainderStart, remainderEnd});
+                System.out.println("  ✅ Adding remainder (before): " + remainderStart + " - " + remainderEnd);
             }
+            
+            // Check for portion AFTER the new range
             if (oldEnd > newEnd) {
-                System.out.println("--- LOG: Creating standard end remainder.");
-                createAndSaveRemainder(existingDistribution, newEnd + 1, oldEnd);
+                int remainderStart = newEnd + 1;
+                int remainderEnd = oldEnd;
+                remainderRanges.add(new int[]{remainderStart, remainderEnd});
+                System.out.println("  ✅ Adding remainder (after): " + remainderStart + " - " + remainderEnd);
+            }
+            
+            // Combine all remainder ranges into a SINGLE record
+            if (!remainderRanges.isEmpty()) {
+                // Sort by start number
+                remainderRanges.sort((a, b) -> Integer.compare(a[0], b[0]));
+                
+                // Find the overall range: from first start to last end
+                int combinedStart = remainderRanges.get(0)[0];
+                int combinedEnd = remainderRanges.get(remainderRanges.size() - 1)[1];
+                
+                // Calculate total count across all remainder ranges
+                int totalCount = remainderRanges.stream()
+                        .mapToInt(range -> range[1] - range[0] + 1)
+                        .sum();
+                
+                System.out.println("  📦 Combining " + remainderRanges.size() + " remainder range(s) into SINGLE record:");
+                for (int[] range : remainderRanges) {
+                    System.out.println("    - Range: " + range[0] + " - " + range[1] + " (" + (range[1] - range[0] + 1) + " apps)");
+                }
+                System.out.println("  ✅ Creating SINGLE combined remainder: " + combinedStart + " - " + combinedEnd + " (" + totalCount + " apps)");
+                
+                // Create a single remainder record with the full range and total count
+                Distribution combinedRemainder = new Distribution();
+                combinedRemainder.setAcademicYear(existingDistribution.getAcademicYear());
+                combinedRemainder.setState(existingDistribution.getState());
+                combinedRemainder.setCity(existingDistribution.getCity());
+                combinedRemainder.setZone(existingDistribution.getZone());
+                combinedRemainder.setDistrict(existingDistribution.getDistrict());
+                combinedRemainder.setCampus(existingDistribution.getCampus());
+                combinedRemainder.setIssuedByType(existingDistribution.getIssuedByType());
+                combinedRemainder.setIssuedToType(existingDistribution.getIssuedToType());
+                combinedRemainder.setCreated_by(existingDistribution.getCreated_by());
+                combinedRemainder.setIssueDate(java.time.LocalDateTime.now());
+                combinedRemainder.setAmount(existingDistribution.getAmount());
+                combinedRemainder.setIssued_to_emp_id(existingDistribution.getIssued_to_emp_id());
+                combinedRemainder.setIssued_to_pro_id(existingDistribution.getIssued_to_pro_id());
+                
+                // Set the combined range and count
+                combinedRemainder.setAppStartNo(combinedStart);
+                combinedRemainder.setAppEndNo(combinedEnd);
+                combinedRemainder.setTotalAppCount(totalCount); // Use actual count, not range size
+                combinedRemainder.setIsActive(1);
+                
+                System.out.println("=== DISTRIBUTION SAVE (COMBINED REMAINDER) - CampusService ===");
+                System.out.println("Operation: CREATE SINGLE COMBINED REMAINDER");
+                System.out.println("Combined Range: " + combinedRemainder.getAppStartNo() + " - " + combinedRemainder.getAppEndNo());
+                System.out.println("Total Count: " + combinedRemainder.getTotalAppCount() + " apps (sum of all remainder ranges)");
+                System.out.println("Receiver EmpId: " + combinedRemainder.getIssued_to_emp_id());
+                System.out.println("Receiver ProId: " + combinedRemainder.getIssued_to_pro_id());
+                System.out.println("Amount: " + combinedRemainder.getAmount());
+                distributionRepository.saveAndFlush(combinedRemainder);
+                System.out.println("Combined Remainder Distribution ID: " + combinedRemainder.getAppDistributionId());
+                System.out.println("============================================================");
             }
         }
 
@@ -589,26 +723,49 @@ public class CampusService {
         // CRITICAL: Flush balance updates to ensure they're persisted
         balanceTrackRepository.flush();
 
-        // B. New Receiver
+        // B. New Receiver - ALWAYS recalculate
         if (newProId != null) {
+            System.out.println("DEBUG CAMPUS UPDATE: Recalculating new receiver balance for PRO: " + newProId);
             recalculateBalanceForPro(newProId, academicYearId, stateId, formDto.getIssuedToTypeId(), dgmUserId,
                     originalAmount);
         } else if (newEmpId != null) {
-            // Use smart addStockToReceiver here
-            addStockToReceiver(newDist, academicYearId, formDto.getIssuedToTypeId(), dgmUserId, originalAmount);
+            System.out.println("DEBUG CAMPUS UPDATE: Recalculating new receiver balance for Employee: " + newEmpId);
+            // Use rebuildBalancesFromDistributions for employees (like DGM update)
+            recalculateBalanceForEmployee(newEmpId, academicYearId, stateId, formDto.getIssuedToTypeId(), dgmUserId,
+                    originalAmount);
         }
 
-        // C. Old Receiver (If changed)
+        // C. Old Receiver (If changed OR range changed) - ALWAYS recalculate if changed
         if (isRecipientChanging || isRangeChanging) {
+            System.out.println("DEBUG CAMPUS UPDATE: Recalculating old receiver balance - RecipientChanged: " + 
+                    isRecipientChanging + ", RangeChanged: " + isRangeChanging);
+            
             if (oldEmpId != null) {
-                recalculateBalanceForEmployee(oldEmpId, academicYearId, stateId,
-                        existingDistribution.getIssuedToType().getAppIssuedId(), dgmUserId, originalAmount);
+                // Get the type ID from existing balance or distribution
+                int oldTypeId = existingDistribution.getIssuedToType() != null ? 
+                        existingDistribution.getIssuedToType().getAppIssuedId() : formDto.getIssuedToTypeId();
+                
+                // Try to get type from balance track if available
+                java.util.List<BalanceTrack> oldBalances = balanceTrackRepository
+                        .findActiveBalancesByEmpAndAmount(academicYearId, oldEmpId, originalAmount);
+                if (!oldBalances.isEmpty() && oldBalances.get(0).getIssuedByType() != null) {
+                    oldTypeId = oldBalances.get(0).getIssuedByType().getAppIssuedId();
+                }
+                
+                System.out.println("DEBUG CAMPUS UPDATE: Recalculating old receiver Employee: " + oldEmpId + 
+                        ", TypeId: " + oldTypeId);
+                recalculateBalanceForEmployee(oldEmpId, academicYearId, stateId, oldTypeId, dgmUserId, originalAmount);
             }
             if (oldProId != null) {
-                recalculateBalanceForPro(oldProId, academicYearId, stateId,
-                        existingDistribution.getIssuedToType().getAppIssuedId(), dgmUserId, originalAmount);
+                System.out.println("DEBUG CAMPUS UPDATE: Recalculating old receiver PRO: " + oldProId);
+                int oldTypeId = existingDistribution.getIssuedToType() != null ? 
+                        existingDistribution.getIssuedToType().getAppIssuedId() : formDto.getIssuedToTypeId();
+                recalculateBalanceForPro(oldProId, academicYearId, stateId, oldTypeId, dgmUserId, originalAmount);
             }
         }
+        
+        // CRITICAL: Flush all balance updates after all recalculations
+        balanceTrackRepository.flush();
 
         System.out.println("--- LOG: END updateDgmToCampusForm ---");
     }
@@ -770,33 +927,143 @@ public class CampusService {
     }
 
     private void rebuildBalancesFromDistributions(int empId, int acYearId, int typeId, int createdBy, Float amount) {
-        System.out.println("--- LOG: Inside rebuildBalancesFromDistributions for Emp: " + empId);
+        System.out.println("DEBUG CAMPUS: rebuildBalancesFromDistributions - Employee: " + empId);
 
         // CRITICAL: Clear persistence context
         distributionRepository.flush();
 
-        // NEW LOGIC: Calculate available balance by subtracting what was given away
-        // 1. Get ALL Active Distributions RECEIVED by this user (what they hold)
+        // 1. Get ALL Active Distributions RECEIVED by this user
         List<Distribution> allReceived = distributionRepository.findActiveHoldingsForEmp(empId, acYearId);
+        
+        System.out.println("DEBUG CAMPUS: rebuildBalancesFromDistributions - Employee: " + empId + 
+                ", All Received Distributions (before amount filter): " + allReceived.size());
+        for (Distribution d : allReceived) {
+            System.out.println("  - Distribution ID: " + d.getAppDistributionId() + 
+                    ", Range: " + d.getAppStartNo() + "-" + d.getAppEndNo() + 
+                    ", Amount: " + d.getAmount() + 
+                    ", IsActive: " + d.getIsActive());
+        }
 
         // 2. Filter by Amount
         List<Distribution> received = allReceived.stream()
                 .filter(d -> d.getAmount() != null && Math.abs(d.getAmount() - amount) < 0.01)
                 .sorted((d1, d2) -> Long.compare(d1.getAppStartNo(), d2.getAppStartNo()))
                 .toList();
+        
+        System.out.println("DEBUG CAMPUS: rebuildBalancesFromDistributions - Employee: " + empId + 
+                ", Received Distributions (after amount filter): " + received.size() + 
+                ", Filter Amount: " + amount);
+        for (Distribution d : received) {
+            System.out.println("  - Distribution ID: " + d.getAppDistributionId() + 
+                    ", Range: " + d.getAppStartNo() + "-" + d.getAppEndNo() + 
+                    ", Count: " + d.getTotalAppCount());
+        }
 
-        System.out.println("--- LOG: Received Distributions: " + received.size());
-
-        // 3. Get ALL Distributions GIVEN AWAY by this user (what they distributed)
+        // 3. Get ALL Distributions GIVEN AWAY by this user
         List<Distribution> allGivenAway = distributionRepository.findByCreatedByAndYear(empId, acYearId);
 
-        // 4. Filter given away by amount
-        List<Distribution> givenAway = allGivenAway.stream()
+        // 3b. Also find distributions that OVERLAP with received ranges but have different issued_to_emp_id/issued_to_pro_id
+        // This catches cases where Admin/DGM updated and transferred apps away from this Campus/PRO
+        // Example: Admin/DGM updates Campus's distribution, taking apps and giving to another Campus/PRO
+        // The new distribution has created_by = Admin/DGM, but it overlaps with Campus's received range
+        // CRITICAL: Only count as "taken away" if the overlapping distribution was created AFTER the received distribution
+        // OR if it represents apps that were actually taken from this Campus's original range
+        List<Distribution> overlappingTakenAway = new java.util.ArrayList<>();
+        for (Distribution receivedDist : received) {
+            int receivedStart = (int) receivedDist.getAppStartNo();
+            int receivedEnd = (int) receivedDist.getAppEndNo();
+            
+            // Find all active distributions that overlap with this received range
+            List<Distribution> overlapping = distributionRepository.findOverlappingDistributions(
+                    acYearId, receivedStart, receivedEnd);
+            
+            for (Distribution overlap : overlapping) {
+                // Only include if:
+                // 1. Same amount
+                // 2. Different issued_to_emp_id or issued_to_pro_id (apps were given to someone else)
+                // 3. Active
+                // 4. Not already in allGivenAway (avoid duplicates)
+                // 5. CRITICAL: The overlap must be WITHIN the received range (not just overlapping)
+                //    AND it must represent apps that were actually taken from this Campus
+                int overlapStart = (int) overlap.getAppStartNo();
+                int overlapEnd = (int) overlap.getAppEndNo();
+                
+                // Check if this overlap is actually WITHIN the received range (overlap is subset of received)
+                // This means: overlap.start >= receivedStart AND overlap.end <= receivedEnd
+                boolean isWithinReceivedRange = overlapStart >= receivedStart && overlapEnd <= receivedEnd;
+                
+                // CRITICAL: EXCLUDE if the overlap CONTAINS the received range (remainder distributions)
+                // Example: Received: 2875052-2875076, Overlap: 2875002-2875101 (remainder for another Campus)
+                // This should NOT be counted as "given away" for this Campus
+                boolean overlapContainsReceived = overlapStart <= receivedStart && overlapEnd >= receivedEnd;
+                
+                // Check if it was created by Admin/DGM (represents a transfer/update)
+                boolean isAdminOrDgmTransfer = overlap.getCreated_by() != empId &&
+                        overlap.getIssuedByType() != null &&
+                        (overlap.getIssuedByType().getAppIssuedId() == 1 || // Admin/CO type
+                         overlap.getIssuedByType().getAppIssuedId() == 3); // DGM type
+                
+                // Check if receiver is different (either emp_id or pro_id)
+                boolean isDifferentReceiver = false;
+                if (receivedDist.getIssued_to_emp_id() != null) {
+                    isDifferentReceiver = !java.util.Objects.equals(receivedDist.getIssued_to_emp_id(), 
+                            overlap.getIssued_to_emp_id());
+                } else if (receivedDist.getIssued_to_pro_id() != null) {
+                    isDifferentReceiver = !java.util.Objects.equals(receivedDist.getIssued_to_pro_id(), 
+                            overlap.getIssued_to_pro_id());
+                }
+                
+                // Only count as "taken away" if:
+                // 1. The overlap is WITHIN the received range (subset), AND
+                // 2. It was created by Admin/DGM (transfer), AND
+                // 3. It does NOT contain the received range (exclude remainders), AND
+                // 4. Receiver is different
+                boolean shouldCountAsTakenAway = isWithinReceivedRange && 
+                        isAdminOrDgmTransfer && 
+                        !overlapContainsReceived &&
+                        isDifferentReceiver;
+                
+                if (Math.abs(overlap.getAmount() - amount) < 0.01 &&
+                    overlap.getIsActive() == 1 &&
+                    !allGivenAway.contains(overlap) &&
+                    shouldCountAsTakenAway) {
+                    overlappingTakenAway.add(overlap);
+                    System.out.println("DEBUG CAMPUS: Found overlapping distribution taken away - ID: " + 
+                            overlap.getAppDistributionId() + ", Range: " + 
+                            overlap.getAppStartNo() + "-" + overlap.getAppEndNo() + 
+                            ", Issued to Emp: " + overlap.getIssued_to_emp_id() + 
+                            ", Issued to Pro: " + overlap.getIssued_to_pro_id() + 
+                            ", Created by: " + overlap.getCreated_by() +
+                            ", IsWithinReceived: " + isWithinReceivedRange +
+                            ", IsAdminOrDgmTransfer: " + isAdminOrDgmTransfer +
+                            ", OverlapContainsReceived: " + overlapContainsReceived);
+                } else {
+                    System.out.println("DEBUG CAMPUS: Excluding overlapping distribution - ID: " + 
+                            overlap.getAppDistributionId() + ", Range: " + 
+                            overlap.getAppStartNo() + "-" + overlap.getAppEndNo() + 
+                            ", Issued to Emp: " + overlap.getIssued_to_emp_id() + 
+                            ", Issued to Pro: " + overlap.getIssued_to_pro_id() + 
+                            ", Created by: " + overlap.getCreated_by() +
+                            ", IsWithinReceived: " + isWithinReceivedRange +
+                            ", IsAdminOrDgmTransfer: " + isAdminOrDgmTransfer +
+                            ", OverlapContainsReceived: " + overlapContainsReceived +
+                            " (not taken from this Campus)");
+                }
+            }
+        }
+
+        // 4. Combine both lists and filter by amount
+        // NOTE: BalanceTrack represents AVAILABLE stock for distribution
+        // So ALL distributions ARE subtracted because they're no longer available
+        List<Distribution> givenAway = new java.util.ArrayList<>(allGivenAway);
+        givenAway.addAll(overlappingTakenAway);
+        givenAway = givenAway.stream()
                 .filter(d -> d.getAmount() != null && Math.abs(d.getAmount() - amount) < 0.01)
                 .sorted((d1, d2) -> Long.compare(d1.getAppStartNo(), d2.getAppStartNo()))
                 .toList();
-
-        System.out.println("--- LOG: Given Away Distributions: " + givenAway.size());
+        
+        System.out.println("DEBUG CAMPUS: rebuildBalancesFromDistributions - Employee: " + empId
+                + ", Given Away Distributions: " + givenAway.size());
 
         // 5. Get CURRENT Active Balance Rows for Reuse
         // REUSE STRATEGY: Instead of deactivating all, we keep them in a list/queue
@@ -827,6 +1094,9 @@ public class CampusService {
             atLeastOneActiveRowCreated = true;
             System.out.println("--- LOG: Created/Reused active balance row for employee " + empId + " with zero count");
         } else {
+            // COLLECT ALL remaining ranges from ALL received distributions first
+            List<int[]> allRemainingRanges = new java.util.ArrayList<>();
+            
             for (Distribution receivedDist : received) {
                 int receivedStart = (int) receivedDist.getAppStartNo();
                 int receivedEnd = (int) receivedDist.getAppEndNo();
@@ -852,43 +1122,63 @@ public class CampusService {
 
                 // Calculate remaining ranges (received minus given away)
                 List<int[]> remainingRanges = calculateRemainingRanges(receivedStart, receivedEnd, givenAwayRanges);
-
-                // Create/Reuse balance tracks for remaining ranges
-                for (int[] range : remainingRanges) {
-                    int remainingStart = range[0];
-                    int remainingEnd = range[1];
-                    int remainingCount = remainingEnd - remainingStart + 1;
-
-                    System.out.println(
-                            "--- LOG: Creating/Reusing Balance Track for range: " + remainingStart + "-"
-                                    + remainingEnd);
-
-                    BalanceTrack nb;
-                    if (!reusePool.isEmpty()) {
-                        nb = reusePool.poll(); // Reuse
-                    } else {
-                        nb = createNewBalanceTrack(empId, acYearId, typeId, createdBy, false);
-                        nb.setAmount(amount);
-                    }
-
-                    nb.setAppAvblCnt(remainingCount);
-
-                    // If available count is 0, set app_from = 0, app_to = 0, and is_active = 1
-                    if (remainingCount <= 0) {
-                        nb.setAppFrom(0);
-                        nb.setAppTo(0);
-                    } else {
-                        nb.setAppFrom(remainingStart);
-                        nb.setAppTo(remainingEnd);
-                    }
-                    // Keep is_active = 1 even when available count is 0 (show as available 0)
-                    nb.setIsActive(1);
-
-                    BalanceTrack saved = balanceTrackRepository.saveAndFlush(nb);
-                    atLeastOneActiveRowCreated = true;
-                    System.out.println(
-                            "--- LOG: Updated/Created Balance Track ID: " + saved.getAppBalanceTrkId());
+                
+                // Add all remaining ranges to the master list
+                allRemainingRanges.addAll(remainingRanges);
+            }
+            
+            // MERGE all remaining ranges into a SINGLE record (even if there are gaps)
+            // This matches the distribution table behavior where a single combined record is shown
+            if (!allRemainingRanges.isEmpty()) {
+                // Sort by start number
+                allRemainingRanges.sort((a, b) -> Integer.compare(a[0], b[0]));
+                
+                // Calculate overall range: from first start to last end
+                int overallStart = allRemainingRanges.get(0)[0];
+                int overallEnd = allRemainingRanges.get(allRemainingRanges.size() - 1)[1];
+                
+                // Calculate total count across ALL remaining ranges (sum of all ranges, not range size)
+                int totalCount = allRemainingRanges.stream()
+                        .mapToInt(range -> range[1] - range[0] + 1)
+                        .sum();
+                
+                System.out.println("--- LOG: Combining " + allRemainingRanges.size() + 
+                        " remaining range(s) into SINGLE balance track record:");
+                for (int[] range : allRemainingRanges) {
+                    System.out.println("    - Range: " + range[0] + " - " + range[1] + 
+                            " (" + (range[1] - range[0] + 1) + " apps)");
                 }
+                System.out.println("  ✅ Creating SINGLE combined balance track: " + overallStart + " - " + 
+                        overallEnd + " (" + totalCount + " apps total)");
+                
+                // Create/Reuse balance track for SINGLE COMBINED range
+                BalanceTrack nb;
+                if (!reusePool.isEmpty()) {
+                    nb = reusePool.poll(); // Reuse
+                } else {
+                    nb = createNewBalanceTrack(empId, acYearId, typeId, createdBy, false);
+                    nb.setAmount(amount);
+                }
+
+                nb.setAppAvblCnt(totalCount); // Use total count, not range size
+
+                // If available count is 0, set app_from = 0, app_to = 0, and is_active = 1
+                if (totalCount <= 0) {
+                    nb.setAppFrom(0);
+                    nb.setAppTo(0);
+                } else {
+                    nb.setAppFrom(overallStart);
+                    nb.setAppTo(overallEnd);
+                }
+                // Keep is_active = 1 even when available count is 0 (show as available 0)
+                nb.setIsActive(1);
+
+                BalanceTrack saved = balanceTrackRepository.saveAndFlush(nb);
+                atLeastOneActiveRowCreated = true;
+                System.out.println(
+                        "--- LOG: Updated/Created SINGLE Balance Track ID: " + saved.getAppBalanceTrkId() +
+                        ", Combined Range: " + saved.getAppFrom() + "-" + saved.getAppTo() + 
+                        ", Total Count: " + saved.getAppAvblCnt() + " apps");
             }
         }
 
@@ -1003,7 +1293,14 @@ public class CampusService {
 
         distribution.setAppStartNo(appNoFrom);
         distribution.setAppEndNo(appNoTo);
-        distribution.setTotalAppCount(formDto.getRange());
+        // Calculate total count from the range to ensure accuracy
+        int calculatedRange = appNoTo - appNoFrom + 1;
+        // Use the calculated range, but validate against formDto.getRange() if provided
+        if (formDto.getRange() > 0 && formDto.getRange() != calculatedRange) {
+            System.out.println("⚠️ WARNING: Form range (" + formDto.getRange() + 
+                    ") doesn't match calculated range (" + calculatedRange + "). Using calculated range.");
+        }
+        distribution.setTotalAppCount(calculatedRange);
         distribution.setAmount(formDto.getApplication_Amount());
 
         // Date Logic: Use Frontend Date, fallback to Now
