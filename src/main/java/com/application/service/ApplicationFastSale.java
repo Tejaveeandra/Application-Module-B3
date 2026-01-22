@@ -188,9 +188,15 @@ public class ApplicationFastSale {
 		if (admissionNumberNumeric == null) {
 			throw new IllegalArgumentException("Admission Number must be provided.");
 		}
-		Distribution distribution = distributionRepository.findProDistributionForAdmissionNumber(admissionNumberNumeric)
-				.orElseThrow(() -> new EntityNotFoundException(
-						"No PRO has been assigned for Admission Number: " + admissionNumberNumeric));
+		List<Distribution> distributions = distributionRepository.findProDistributionForAdmissionNumber(admissionNumberNumeric);
+		Distribution distribution = distributions.isEmpty() 
+				? null 
+				: distributions.get(0); // Take the first (most recent) distribution
+		
+		if (distribution == null) {
+			throw new EntityNotFoundException(
+					"No PRO has been assigned for Admission Number: " + admissionNumberNumeric);
+		}
 		Employee pro = distribution.getIssuedToEmployee();
 		if (pro == null) {
 			throw new EntityNotFoundException(
@@ -562,9 +568,15 @@ public class ApplicationFastSale {
 		// ==============================================================
 		// PART 1: VALIDATE PRO and LOOKUP/FETCH Academic Record
 		// ==============================================================
-		Distribution distribution = distributionRepository.findProDistributionForAdmissionNumber(admissionNumberNumeric)
-				.orElseThrow(() -> new EntityNotFoundException(
-						"No PRO has been assigned for Admission Number: " + admissionNumberNumeric));
+		List<Distribution> distributions = distributionRepository.findProDistributionForAdmissionNumber(admissionNumberNumeric);
+		Distribution distribution = distributions.isEmpty() 
+				? null 
+				: distributions.get(0); // Take the first (most recent) distribution
+		
+		if (distribution == null) {
+			throw new EntityNotFoundException(
+					"No PRO has been assigned for Admission Number: " + admissionNumberNumeric);
+		}
 		Employee pro = distribution.getIssuedToEmployee();
 		if (pro == null) {
 			throw new EntityNotFoundException(

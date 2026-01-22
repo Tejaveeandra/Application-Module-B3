@@ -371,8 +371,8 @@ public interface DistributionRepository extends JpaRepository<Distribution, Inte
 	List<Distribution> findOverlappingDistributions(@Param("academicYearId") int academicYearId,
 			@Param("startNo") int startNo, @Param("endNo") int endNo);
 
-	@Query("SELECT d FROM Distribution d WHERE :admissionNo >= d.appStartNo AND :admissionNo <= d.appEndNo AND d.issuedToType.appIssuedId = 4 AND d.isActive = 1")
-	Optional<Distribution> findProDistributionForAdmissionNumber(@Param("admissionNo") long admissionNo);
+	@Query("SELECT d FROM Distribution d WHERE :admissionNo >= d.appStartNo AND :admissionNo <= d.appEndNo AND d.issuedToType.appIssuedId = 4 AND d.isActive = 1 ORDER BY d.appDistributionId DESC")
+	List<Distribution> findProDistributionForAdmissionNumber(@Param("admissionNo") long admissionNo);
 
 	@Query("SELECT SUM(d.totalAppCount) FROM Distribution d WHERE d.created_by = :empId AND d.academicYear.acdcYearId = :yearId AND d.amount = :amount AND d.isActive = 1")
 	Optional<Integer> sumTotalAppCountByCreatedByAndAmount(@Param("empId") int empId, @Param("yearId") int yearId,

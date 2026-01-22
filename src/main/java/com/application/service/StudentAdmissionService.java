@@ -683,9 +683,15 @@ public class StudentAdmissionService {
             throw new IllegalArgumentException("Admission Number must be provided.");
         }
 
-        Distribution distribution = distributionRepo.findProDistributionForAdmissionNumber(admissionNumberNumeric)
-                .orElseThrow(() -> new EntityNotFoundException(
-                        "No PRO has been assigned for Admission Number: " + admissionNumberNumeric));
+        List<Distribution> distributions = distributionRepo.findProDistributionForAdmissionNumber(admissionNumberNumeric);
+        Distribution distribution = distributions.isEmpty() 
+                ? null 
+                : distributions.get(0); // Take the first (most recent) distribution
+        
+        if (distribution == null) {
+            throw new EntityNotFoundException(
+                    "No PRO has been assigned for Admission Number: " + admissionNumberNumeric);
+        }
 
         Employee pro = distribution.getIssuedToEmployee();
         if (pro == null) {
@@ -977,9 +983,15 @@ public class StudentAdmissionService {
             throw new IllegalArgumentException("Admission Number must be provided.");
         }
 
-        Distribution distribution = distributionRepo.findProDistributionForAdmissionNumber(admissionNumberNumeric)
-                .orElseThrow(() -> new EntityNotFoundException(
-                        "No PRO has been assigned for Admission Number: " + admissionNumberNumeric));
+        List<Distribution> distributions = distributionRepo.findProDistributionForAdmissionNumber(admissionNumberNumeric);
+        Distribution distribution = distributions.isEmpty() 
+                ? null 
+                : distributions.get(0); // Take the first (most recent) distribution
+        
+        if (distribution == null) {
+            throw new EntityNotFoundException(
+                    "No PRO has been assigned for Admission Number: " + admissionNumberNumeric);
+        }
 
         Employee pro = distribution.getIssuedToEmployee();
         if (pro == null) {
