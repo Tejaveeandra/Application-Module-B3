@@ -83,11 +83,17 @@ public interface CmpsOrientationBatchFeeViewRepository extends JpaRepository<Cmp
 			+ "c.orientationStartDate, c.orientationEndDate, c.orientationFee) " + "FROM CmpsOrientationBatchFeeView c "
 			+ "WHERE c.orientationId = :orientationId")
 	OrientationFeeAndDatesDTO getOrientationFeeAndDatesDistinct(@Param("orientationId") Integer orientationId);
-	
+
 	@Query("SELECT DISTINCT new com.application.dto.OrientationFeeAndDatesDTO("
-            + "c.orientationStartDate, c.orientationEndDate, c.orientationFee) " + "FROM CmpsOrientationBatchFeeView c "
-            + "WHERE c.orientationId = :orientationId AND c.cmpsId = :cmpsId AND c.classId = :classId")
-    OrientationFeeAndDatesDTO getOrientationFeeAndDatesByCampusClassAndOrientation(
-            @Param("orientationId") Integer orientationId, @Param("cmpsId") Integer cmpsId,
-            @Param("classId") Integer classId);
+			+ "c.orientationStartDate, c.orientationEndDate, c.orientationFee) " + "FROM CmpsOrientationBatchFeeView c "
+			+ "WHERE c.orientationId = :orientationId AND c.cmpsId = :cmpsId AND c.classId = :classId")
+	OrientationFeeAndDatesDTO getOrientationFeeAndDatesByCampusClassAndOrientation(
+			@Param("orientationId") Integer orientationId, @Param("cmpsId") Integer cmpsId,
+			@Param("classId") Integer classId);
+
+	@Query("SELECT DISTINCT new com.application.dto.OrientationFeeAndDatesDTO("
+			+ "c.orientationStartDate, c.orientationEndDate, c.orientationFee) " + "FROM CmpsOrientationBatchFeeView c "
+			+ "WHERE c.orientationId = :orientationId AND c.cmpsId = :cmpsId")
+	OrientationFeeAndDatesDTO getOrientationFeeAndDatesByOrientationAndCampus(
+			@Param("orientationId") Integer orientationId, @Param("cmpsId") Integer cmpsId);
 }

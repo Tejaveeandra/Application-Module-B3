@@ -236,9 +236,16 @@ public class StudentAdmissionService {
         return types.get(0); // return only 1 cmpsType
     }
 
-    public OrientationFeeAndDatesDTO getFeeAndDates(Integer orientationId) {
-        OrientationFeeAndDatesDTO result = cmpsOrientationBatchFeeViewRepo
-                .getOrientationFeeAndDatesDistinct(orientationId);
+    public OrientationFeeAndDatesDTO getFeeAndDates(Integer orientationId, Integer cmpsId) {
+        OrientationFeeAndDatesDTO result;
+
+        if (cmpsId != null && cmpsId != 0) {
+            result = cmpsOrientationBatchFeeViewRepo
+                    .getOrientationFeeAndDatesByOrientationAndCampus(orientationId, cmpsId);
+        } else {
+            result = cmpsOrientationBatchFeeViewRepo
+                    .getOrientationFeeAndDatesDistinct(orientationId);
+        }
 
         if (result == null) {
             throw new RuntimeException("No orientation details found for ID: " + orientationId);
@@ -683,11 +690,12 @@ public class StudentAdmissionService {
             throw new IllegalArgumentException("Admission Number must be provided.");
         }
 
-        List<Distribution> distributions = distributionRepo.findProDistributionForAdmissionNumber(admissionNumberNumeric);
-        Distribution distribution = distributions.isEmpty() 
-                ? null 
+        List<Distribution> distributions = distributionRepo
+                .findProDistributionForAdmissionNumber(admissionNumberNumeric);
+        Distribution distribution = distributions.isEmpty()
+                ? null
                 : distributions.get(0); // Take the first (most recent) distribution
-        
+
         if (distribution == null) {
             throw new EntityNotFoundException(
                     "No PRO has been assigned for Admission Number: " + admissionNumberNumeric);
@@ -983,11 +991,12 @@ public class StudentAdmissionService {
             throw new IllegalArgumentException("Admission Number must be provided.");
         }
 
-        List<Distribution> distributions = distributionRepo.findProDistributionForAdmissionNumber(admissionNumberNumeric);
-        Distribution distribution = distributions.isEmpty() 
-                ? null 
+        List<Distribution> distributions = distributionRepo
+                .findProDistributionForAdmissionNumber(admissionNumberNumeric);
+        Distribution distribution = distributions.isEmpty()
+                ? null
                 : distributions.get(0); // Take the first (most recent) distribution
-        
+
         if (distribution == null) {
             throw new EntityNotFoundException(
                     "No PRO has been assigned for Admission Number: " + admissionNumberNumeric);
