@@ -3133,19 +3133,59 @@ public class ApplicationAnalyticsService {
         System.out.println("🔍 getMetricsData called");
         MetricsDataDTO dto = new MetricsDataDTO();
         try {
-            List<Integer> yearIds = yearFetcher.get();
-            System.out.println("📅 Year IDs from fetcher: " + yearIds);
-            if (yearIds.isEmpty()) {
-                System.out.println("❌ No years found - returning empty metrics");
-                dto.setMetrics(new ArrayList<>());
-                return dto;
+            // ============================================================
+            // FOR METRIC CARDS: Use Academic Year based on March 1st transition
+            // ============================================================
+            // Academic year transitions on March 1st:
+            // - Before March 1st: Show 26-27 (acdcYearId = 27, year = 2026)
+            // - On/After March 1st: Show 27-28 (acdcYearId = 28, year = 2027)
+            java.time.LocalDate today = java.time.LocalDate.now();
+            int currentCalendarYear = today.getYear();
+            int currentMonth = today.getMonthValue();
+            
+            // Calculate the academic year value for metric cards
+            // Before March 1st: Use current year (e.g., 2026 → shows 26-27, acdcYearId 27)
+            // On/After March 1st: Use current year + 1 (e.g., 2027 → shows 27-28, acdcYearId 28)
+            int cardsAcademicYearValue = (currentMonth >= 3) ? (currentCalendarYear + 1) : currentCalendarYear;
+            
+            System.out.println("========================================");
+            System.out.println("METRIC CARDS ACADEMIC YEAR CALCULATION");
+            System.out.println("Current Calendar Year: " + currentCalendarYear);
+            System.out.println("Current Month: " + currentMonth);
+            System.out.println("Cards Academic Year Value (year field to search): " + cardsAcademicYearValue);
+            System.out.println("Expected: " + (currentMonth >= 3 ? 
+                    "After March 1st → year=2027 → acdcYearId=28 (2027-28)" : 
+                    "Before March 1st → year=2026 → acdcYearId=27 (2026-27)"));
+            System.out.println("========================================");
+            
+            // Find the academic year entity for metric cards
+            java.util.Optional<AcademicYear> cardsYearEntityOpt = academicYearRepository
+                    .findByYearAndIsActive(cardsAcademicYearValue, 1);
+            
+            Integer currentYearId = null;
+            if (cardsYearEntityOpt.isPresent()) {
+                currentYearId = cardsYearEntityOpt.get().getAcdcYearId();
+                System.out.println("✅ METRIC CARDS: Found academic year - acdcYearId: " + currentYearId + 
+                        ", year: " + cardsYearEntityOpt.get().getYear() + 
+                        ", academicYear: " + cardsYearEntityOpt.get().getAcademicYear());
+            } else {
+                // If academic year not found, try to find the latest active year as fallback
+                System.out.println("METRIC CARDS: Academic year with year=" + cardsAcademicYearValue + " not found, trying fallback...");
+                List<Integer> yearIds = yearFetcher.get();
+                if (yearIds != null && !yearIds.isEmpty()) {
+                    // Use the latest year from data as fallback
+                    yearIds.sort(Integer::compare);
+                    currentYearId = yearIds.get(yearIds.size() - 1);
+                    System.out.println("METRIC CARDS: Using fallback - acdcYearId: " + currentYearId);
+                } else {
+                    // If still no year found, return empty metrics
+                    System.out.println("METRIC CARDS: No years found - returning empty metrics");
+                    dto.setMetrics(new ArrayList<>());
+                    return dto;
+                }
             }
-            // Sort yearIds ascending → last one is current year
-            yearIds.sort(Integer::compare);
-            int currentYearId = yearIds.get(yearIds.size() - 1);
-            // Always use previous year (currentYearId - 1) for comparison, similar to graph
-            // logic
-            // This ensures we show percentage change even when only one year of data exists
+            
+            // Always use previous year (currentYearId - 1) for comparison
             int previousYearId = currentYearId - 1;
             System.out.println("📅 Current Year ID: " + currentYearId);
             System.out.println("📅 Previous Year ID: " + previousYearId + " (calculated as currentYearId - 1)");
@@ -3153,8 +3193,7 @@ public class ApplicationAnalyticsService {
             AcademicYear cy = academicYearRepository.findById(currentYearId).orElse(null);
             AcademicYear py = academicYearRepository.findById(previousYearId).orElse(null);
 
-            // If previous year doesn't exist by ID, try to find it by year (currentYear -
-            // 1)
+            // If previous year doesn't exist by ID, try to find it by year (currentYear - 1)
             if (py == null && cy != null) {
                 int previousYearNumber = cy.getYear() - 1;
                 py = academicYearRepository.findByYear(previousYearNumber).orElse(null);
@@ -3276,6 +3315,34 @@ public class ApplicationAnalyticsService {
         // If both have data: calculate normal percentage change
         double change = ((current - previous) / previous) * 100;
         return Math.round(change);
+    }
+
+    // Helper method for percentage calculation with clamping (same as AdminDashboardService)
+    private int clampChange(int prev, int curr) {
+        if (prev == 0) {
+            // If previous was 0, any increase is considered 100% growth, but if current is also 0, return 0
+            return curr > 0 ? 100 : 0;
+        }
+        double raw = ((double) (curr - prev) / prev) * 100;
+        return clamp(raw);
+    }
+
+    private int clamp(double value) {
+        if (value > 100) return 100;
+        if (value < -100) return -100;
+        return (int) Math.round(value);
+    }
+
+    // Helper method for percentage calculation without clamping (for sold percentage in graph)
+    private int unclampedChange(int prev, int curr) {
+        if (prev == 0) {
+            // If previous was 0, any increase shows a high percentage to indicate growth
+            // If current is also 0, return 0
+            return curr > 0 ? 1000 : 0; // Show 1000% to indicate significant growth from 0
+        }
+        double raw = ((double) (curr - prev) / prev) * 100;
+        // Don't clamp - show actual percentage even if it exceeds 100 or goes below -100
+        return (int) Math.round(raw);
     }
 
     private String getChangeDirection(double change) {
@@ -3803,27 +3870,45 @@ public class ApplicationAnalyticsService {
             }
         }
         // Build GraphBarDTO list for all 4 years (always return 4 years)
+        // Calculate percentages by comparing each year with its previous year (like metric cards)
         List<GraphBarDTO> barList = new ArrayList<>();
-        for (Integer yearId : yearIds) {
+        for (int i = 0; i < yearIds.size(); i++) {
+            Integer yearId = yearIds.get(i);
+            Integer previousYearId = (i < yearIds.size() - 1) ? yearIds.get(i + 1) : null; // Previous year (next in list)
+            
             long[] data = yearDataMap.getOrDefault(yearId, new long[] { 0L, 0L });
             long issuedCount = data[0]; // totalAppCount from table
             long soldCount = data[1]; // sold from table
             AcademicYear year = yearMap.get(yearId);
             String yearLabel = year != null ? year.getAcademicYear() : "Year " + yearId;
-            // Calculate percentages
+            
+            // Calculate percentages by comparing with previous year
             int issuedPercent;
             int soldPercent;
-            // If data is missing (issuedCount = 0), both percentages are 0
-            // If data exists (issuedCount > 0), issuedPercent is 100% (baseline) and
-            // calculate sold percentage
-            if (issuedCount > 0) {
-                issuedPercent = 100; // 100% as baseline when data exists
-                soldPercent = (int) Math.round((soldCount * 100.0) / issuedCount);
+            
+            if (previousYearId != null) {
+                // Get previous year data for comparison
+                long[] prevData = yearDataMap.getOrDefault(previousYearId, new long[] { 0L, 0L });
+                long prevIssuedCount = prevData[0];
+                long prevSoldCount = prevData[1];
+                
+                // Calculate percentage change
+                // Issued: Use clampChange (clamped to -100 to 100)
+                issuedPercent = clampChange((int) prevIssuedCount, (int) issuedCount);
+                // Sold: Use unclampedChange (show actual percentage even if exceeds 100)
+                soldPercent = unclampedChange((int) prevSoldCount, (int) soldCount);
             } else {
-                // No data exists - both percentages are 0
-                issuedPercent = 0;
-                soldPercent = 0;
+                // For the oldest year (no previous year), use absolute percentages
+                if (issuedCount > 0) {
+                    issuedPercent = 100; // 100% as baseline when data exists
+                    soldPercent = (int) Math.round((soldCount * 100.0) / issuedCount);
+                } else {
+                    // No data exists - both percentages are 0
+                    issuedPercent = 0;
+                    soldPercent = 0;
+                }
             }
+            
             // Log calculation details for multiple campuses
             if (campusIds != null && campusIds.size() > 1) {
                 System.out.println("Year: " + yearLabel + " | Issued: " + issuedCount + " | Sold: " + soldCount +

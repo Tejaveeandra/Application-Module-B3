@@ -40,6 +40,8 @@ public class UserAppSoldService {
 	private ZonalAccountantRepository zonalAccountantRepository;
 	@Autowired
 	private SCEmployeeRepository scEmployeeRepository;
+	@Autowired
+	private com.application.repository.CampusRepository campusRepository;
 
 	private UserAppSoldDTO convertToDto(UserAppSold userAppSold) {
 		UserAppSoldDTO dto = new UserAppSoldDTO();
@@ -63,6 +65,54 @@ public class UserAppSoldService {
 	public List<RateResponseDTO> getAllRateData(String campusCategory, Integer empId) {
 		System.out.println("--- LOG: STARTING RATE CALCULATION FOR EMP_ID: " + empId + " ---");
 
+		// ============================================================
+		// Calculate Academic Year based on March 1st transition
+		// ============================================================
+		// Academic year transitions on March 1st:
+		// - Before March 1st: Show 26-27 (acdcYearId = 27, year = 2026)
+		// - On/After March 1st: Show 27-28 (acdcYearId = 28, year = 2027)
+		java.time.LocalDate today = java.time.LocalDate.now();
+		int currentCalendarYear = today.getYear();
+		int currentMonth = today.getMonthValue();
+		
+		// Calculate the academic year value for performance data
+		// Before March 1st: Use current year (e.g., 2026 → shows 26-27, acdcYearId 27)
+		// On/After March 1st: Use current year + 1 (e.g., 2027 → shows 27-28, acdcYearId 28)
+		int performanceAcademicYearValue = (currentMonth >= 3) ? (currentCalendarYear + 1) : currentCalendarYear;
+		
+		System.out.println("========================================");
+		System.out.println("PERFORMANCE DATA ACADEMIC YEAR CALCULATION");
+		System.out.println("Current Calendar Year: " + currentCalendarYear);
+		System.out.println("Current Month: " + currentMonth);
+		System.out.println("Performance Academic Year Value (year field to search): " + performanceAcademicYearValue);
+		System.out.println("Expected: " + (currentMonth >= 3 ? 
+				"After March 1st → year=2027 → acdcYearId=28 (2027-28)" : 
+				"Before March 1st → year=2026 → acdcYearId=27 (2026-27)"));
+		System.out.println("========================================");
+		
+		// Find the academic year entity for performance data
+		java.util.Optional<com.application.entity.AcademicYear> yearEntityOpt = academicYearRepository
+				.findByYearAndIsActive(performanceAcademicYearValue, 1);
+		
+		Integer yearId = null;
+		if (yearEntityOpt.isPresent()) {
+			yearId = yearEntityOpt.get().getAcdcYearId();
+			System.out.println("✅ PERFORMANCE DATA: Found academic year - acdcYearId: " + yearId + 
+					", year: " + yearEntityOpt.get().getYear() + 
+					", academicYear: " + yearEntityOpt.get().getAcademicYear());
+		} else {
+			// If academic year not found, try to find the latest active year as fallback
+			System.out.println("PERFORMANCE DATA: Academic year with year=" + performanceAcademicYearValue + " not found, trying fallback...");
+			java.util.List<com.application.entity.AcademicYear> allActiveYears = academicYearRepository.findAllActiveOrderedByYearDesc();
+			if (allActiveYears != null && !allActiveYears.isEmpty()) {
+				yearId = allActiveYears.get(0).getAcdcYearId();
+				System.out.println("PERFORMANCE DATA: Using fallback - acdcYearId: " + yearId);
+			} else {
+				System.out.println("PERFORMANCE DATA: No active academic years found, returning empty response");
+				return new ArrayList<>();
+			}
+		}
+
 		List<Integer> dgmIds = null;
 		List<Integer> campusIds = null;
 		String userRole = null;
@@ -75,7 +125,7 @@ public class UserAppSoldService {
 				userRole = employee.getEmpStudApplicationRole();
 				System.out.println("User Role: " + userRole);
 
-				// LOGIC: IF ZONE -> Filter DGMs
+				// LOGIC: IF ZONE -> Filter DGMs and Campuses
 				if ("ZONAL ACCOUNTANT".equalsIgnoreCase(userRole) || "ZONE".equalsIgnoreCase(userRole)
 						|| "ZONAL_OFFICER".equalsIgnoreCase(userRole)) {
 					// Fetch the Zone ID from the employee view
@@ -83,6 +133,12 @@ public class UserAppSoldService {
 					// Get all DGMs under this Zone
 					dgmIds = userAppSoldRepository.findDgmIdsByZoneId(zoneId);
 					System.out.println("Zone Logged In (" + zoneId + "). Fetched DGM IDs: " + dgmIds);
+					// Get all Campuses under this Zone (to filter campus performance)
+					List<com.application.entity.Campus> campuses = campusRepository.findByZoneZoneId(zoneId);
+					campusIds = campuses.stream()
+							.map(com.application.entity.Campus::getCampusId)
+							.collect(java.util.stream.Collectors.toList());
+					System.out.println("Zone Logged In (" + zoneId + "). Fetched Campus IDs: " + campusIds);
 				}
 				// LOGIC: IF DGM -> Filter Campuses
 				else if ("DGM".equalsIgnoreCase(userRole) || "DIVISIONAL_OFFICER".equalsIgnoreCase(userRole)) {
@@ -115,7 +171,7 @@ public class UserAppSoldService {
 			}
 		}
 
-		return calculateRateDataInternal(campusCategory, dgmIds, campusIds, showZone, showDgm, showCampus);
+		return calculateRateDataInternal(campusCategory, dgmIds, campusIds, showZone, showDgm, showCampus, yearId);
 	}
 
 	private List<RateResponseDTO> calculateRateDataInternal(
@@ -124,7 +180,8 @@ public class UserAppSoldService {
 			List<Integer> campusIds,
 			boolean showZone,
 			boolean showDgm,
-			boolean showCampus) {
+			boolean showCampus,
+			Integer yearId) {
 
 		String category = (campusCategory != null && !campusCategory.trim().isEmpty()) ? campusCategory.trim() : null;
 		List<RateResponseDTO> responseList = new ArrayList<>();
@@ -132,8 +189,8 @@ public class UserAppSoldService {
 		// --- 1. ZONES (Always Global / Category based) ---
 		if (showZone) {
 			List<Object[]> zoneRaw = (category != null)
-					? userAppSoldRepository.findZonePerformanceNativeByCategory(category)
-					: userAppSoldRepository.findZonePerformanceNative();
+					? userAppSoldRepository.findZonePerformanceNativeByCategoryAndYear(category, yearId)
+					: userAppSoldRepository.findZonePerformanceNativeByYear(yearId);
 
 			responseList.add(processAnalytics("zone", "DISTRIBUTE_ZONE", "Application Drop Rated Zone Wise",
 					"Application Top Rated Zone Wise", mapToPerformanceDTO(zoneRaw)));
@@ -143,13 +200,13 @@ public class UserAppSoldService {
 		if (showDgm) {
 			List<Object[]> dgmRaw;
 			if (dgmIds != null && !dgmIds.isEmpty()) {
-				dgmRaw = userAppSoldRepository.findDgmPerformanceForZone(dgmIds);
+				dgmRaw = userAppSoldRepository.findDgmPerformanceForZoneAndYear(dgmIds, yearId);
 			} else {
 				// If filtering by IDs is NOT requested but showDgm IS true (e.g. Admin), fetch
 				// all
 				dgmRaw = (category != null)
-						? userAppSoldRepository.findDgmPerformanceNativeByCategory(category)
-						: userAppSoldRepository.findDgmPerformanceNative();
+						? userAppSoldRepository.findDgmPerformanceNativeByCategoryAndYear(category, yearId)
+						: userAppSoldRepository.findDgmPerformanceNativeByYear(yearId);
 			}
 			responseList.add(processAnalytics("dgm", "DISTRIBUTE_DGM", "Application Drop Rated DGM Wise",
 					"Application Top Rated DGM Wise", mapToPerformanceDTO(dgmRaw)));
@@ -159,11 +216,11 @@ public class UserAppSoldService {
 		if (showCampus) {
 			List<Object[]> campusRaw;
 			if (campusIds != null && !campusIds.isEmpty()) {
-				campusRaw = userAppSoldRepository.findCampusPerformanceForDgm(campusIds);
+				campusRaw = userAppSoldRepository.findCampusPerformanceForDgmAndYear(campusIds, yearId);
 			} else {
 				campusRaw = (category != null)
-						? userAppSoldRepository.findCampusPerformanceNativeByCategory(category)
-						: userAppSoldRepository.findCampusPerformanceNative();
+						? userAppSoldRepository.findCampusPerformanceNativeByCategoryAndYear(category, yearId)
+						: userAppSoldRepository.findCampusPerformanceNativeByYear(yearId);
 			}
 			responseList.add(processAnalytics("campus", "DISTRIBUTE_CAMPUS", "Application Drop Rated Branch Wise",
 					"Application Top Rated Branch Wise", mapToPerformanceDTO(campusRaw)));

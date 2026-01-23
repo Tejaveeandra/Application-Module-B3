@@ -270,6 +270,107 @@ public interface UserAppSoldRepository extends JpaRepository<UserAppSold, Long> 
             + "GROUP BY c.cmps_name", nativeQuery = true)
     List<Object[]> findCampusPerformanceNativeByCategory(@Param("category") String category);
    
+    // --- NEW: Year-filtered Performance Queries ---
+    
+    // 1. ZONES (Filtered by Year)
+    @Query(value = "SELECT z.zone_name, "
+            + "(CAST(SUM(s.sold) AS DECIMAL) / NULLIF(SUM(s.total_app_count), 0)) * 100.0 AS performance "
+            + "FROM sce_application.sce_user_app_sold s "
+            + "JOIN sce_locations.sce_zone z ON s.zone_id = z.zone_id "
+            + "WHERE s.is_active = 1 "
+            + "AND s.acdc_year_id = :yearId "
+            + "GROUP BY z.zone_name", nativeQuery = true)
+    List<Object[]> findZonePerformanceNativeByYear(@Param("yearId") Integer yearId);
+    
+    // 2. ZONES (Filtered by Category and Year)
+    @Query(value = "SELECT z.zone_name, "
+            + "(CAST(SUM(s.sold) AS DECIMAL) / NULLIF(SUM(s.total_app_count), 0)) * 100.0 AS performance "
+            + "FROM sce_application.sce_user_app_sold s "
+            + "JOIN sce_locations.sce_zone z ON s.zone_id = z.zone_id "
+            + "JOIN sce_admin.sce_emp_view e ON s.emp_id = e.emp_id "
+            + "WHERE s.is_active = 1 "
+            + "AND s.acdc_year_id = :yearId "
+            + "AND LOWER(e.cmps_category) = LOWER(:category) "
+            + "GROUP BY z.zone_name", nativeQuery = true)
+    List<Object[]> findZonePerformanceNativeByCategoryAndYear(@Param("category") String category, @Param("yearId") Integer yearId);
+    
+    // 3. DGMS (Filtered by Year)
+    @Query(value = """
+          SELECT CONCAT(e.first_name, ' ', e.last_name) AS dgm_name,
+                 (CAST(SUM(s.sold) AS DECIMAL) / NULLIF(SUM(s.total_app_count), 0)) * 100.0 AS performance
+          FROM sce_application.sce_user_app_sold s
+          JOIN sce_employee.sce_emp e ON s.emp_id = e.emp_id
+          WHERE s.is_active = 1
+            AND s.entity_id = 3
+            AND s.acdc_year_id = :yearId
+          GROUP BY e.first_name, e.last_name
+      """, nativeQuery = true)
+    List<Object[]> findDgmPerformanceNativeByYear(@Param("yearId") Integer yearId);
+    
+    // 4. DGMS (Filtered by Category and Year)
+    @Query(value = """
+          SELECT CONCAT(e.first_name, ' ', e.last_name) AS dgm_name,
+                 (CAST(SUM(s.sold) AS DECIMAL) / NULLIF(SUM(s.total_app_count), 0)) * 100.0 AS performance
+          FROM sce_application.sce_user_app_sold s
+          JOIN sce_employee.sce_emp e ON s.emp_id = e.emp_id
+          JOIN sce_admin.sce_emp_view ev ON s.emp_id = ev.emp_id
+          WHERE s.is_active = 1
+            AND s.entity_id = 3
+            AND s.acdc_year_id = :yearId
+            AND LOWER(ev.cmps_category) = LOWER(:category)
+          GROUP BY e.first_name, e.last_name
+      """, nativeQuery = true)
+    List<Object[]> findDgmPerformanceNativeByCategoryAndYear(@Param("category") String category, @Param("yearId") Integer yearId);
+    
+    // 5. DGMS (Filtered by Zone and Year)
+    @Query(value = """
+            SELECT CONCAT(e.first_name, ' ', e.last_name) AS dgm_name,
+                   (CAST(SUM(s.sold) AS DECIMAL) / NULLIF(SUM(s.total_app_count), 0)) * 100.0 AS performance
+            FROM sce_application.sce_user_app_sold s
+            JOIN sce_employee.sce_emp e ON s.emp_id = e.emp_id
+            WHERE s.is_active = 1
+              AND s.entity_id = 3
+              AND s.acdc_year_id = :yearId
+              AND s.emp_id IN :dgmEmpIds
+            GROUP BY e.first_name, e.last_name
+        """, nativeQuery = true)
+    List<Object[]> findDgmPerformanceForZoneAndYear(@Param("dgmEmpIds") List<Integer> dgmEmpIds, @Param("yearId") Integer yearId);
+    
+    // 6. CAMPUSES (Filtered by Year)
+    @Query(value = "SELECT c.cmps_name, "
+            + "(CAST(SUM(s.sold) AS DECIMAL) / NULLIF(SUM(s.total_app_count), 0)) * 100.0 AS performance "
+            + "FROM sce_application.sce_user_app_sold s "
+            + "JOIN sce_campus.sce_cmps c ON s.cmps_id = c.cmps_id "
+            + "WHERE s.is_active = 1 "
+            + "AND s.acdc_year_id = :yearId "
+            + "GROUP BY c.cmps_name", nativeQuery = true)
+    List<Object[]> findCampusPerformanceNativeByYear(@Param("yearId") Integer yearId);
+    
+    // 7. CAMPUSES (Filtered by Category and Year)
+    @Query(value = "SELECT c.cmps_name, "
+            + "(CAST(SUM(s.sold) AS DECIMAL) / NULLIF(SUM(s.total_app_count), 0)) * 100.0 AS performance "
+            + "FROM sce_application.sce_user_app_sold s "
+            + "JOIN sce_campus.sce_cmps c ON s.cmps_id = c.cmps_id "
+            + "JOIN sce_admin.sce_emp_view e ON s.emp_id = e.emp_id "
+            + "WHERE s.is_active = 1 "
+            + "AND s.acdc_year_id = :yearId "
+            + "AND LOWER(e.cmps_category) = LOWER(:category) "
+            + "GROUP BY c.cmps_name", nativeQuery = true)
+    List<Object[]> findCampusPerformanceNativeByCategoryAndYear(@Param("category") String category, @Param("yearId") Integer yearId);
+    
+    // 8. CAMPUSES (Filtered by DGM and Year)
+    @Query(value = """
+              SELECT c.cmps_name,
+                  (CAST(SUM(s.sold) AS DECIMAL) / NULLIF(SUM(s.total_app_count), 0)) * 100 AS performance
+              FROM sce_application.sce_user_app_sold s
+              JOIN sce_campus.sce_cmps c ON s.cmps_id = c.cmps_id
+              WHERE s.is_active = 1
+                AND s.acdc_year_id = :yearId
+                AND s.cmps_id IN :campusIds
+              GROUP BY c.cmps_name
+          """, nativeQuery = true)
+    List<Object[]> findCampusPerformanceForDgmAndYear(@Param("campusIds") List<Integer> campusIds, @Param("yearId") Integer yearId);
+   
     // --- Flexible Graph Data Methods (Year-wise with optional filters) ---
    
     @Query("""
