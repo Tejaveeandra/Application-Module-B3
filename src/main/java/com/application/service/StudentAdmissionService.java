@@ -53,6 +53,7 @@ import com.application.entity.StudentClass;
 import com.application.entity.StudentOrientationDetails;
 import com.application.entity.StudentPersonalDetails;
 import com.application.entity.StudentRelation;
+import com.application.entity.StudentType;
 import com.application.entity.StudyType;
 import com.application.entity.Zone;
 import com.application.repository.AcademicYearRepository;
@@ -406,7 +407,51 @@ public class StudentAdmissionService {
 
     // @Cacheable(value = "studyTypesByCampusAndClass", key = "{#cmpsId, #classId}")
     public List<GenericDropdownDTO> getStudyTypesByCampusAndClass(int cmpsId, int classId) {
-        return cmpsOrientationBatchFeeViewRepo.findDistinctStudyTypesByCmpsIdAndClassId(cmpsId, classId);
+        // Fetch Campus
+        Campus campus = campusRepo.findById(cmpsId)
+                .orElseThrow(() -> new EntityNotFoundException("Campus not found for ID: " + cmpsId));
+
+        String campusType = campus.getCmps_type();
+        if (campusType == null) {
+            return Collections.emptyList();
+        }
+
+        campusType = campusType.trim().toUpperCase();
+        List<StudentType> allTypes = studentTypeRepo.findAll();
+
+        // 1. "DS AND RES" -> Show All
+        if (campusType.contains("DS") && campusType.contains("RES")) {
+            return allTypes.stream()
+                    .map(t -> new GenericDropdownDTO(t.getStud_type_id(), t.getStud_type()))
+                    .collect(Collectors.toList());
+        }
+
+        // 2. "RESIDENTIAL" -> Show only Residential (and Semi-Res)
+        if (campusType.contains("RESIDENTIAL")) {
+            boolean isSemi = campusType.contains("SEMI");
+            return allTypes.stream()
+                    .filter(t -> {
+                        if (isSemi) {
+                            return t.getStud_type().toUpperCase().contains("RESIDENTIAL");
+                        }
+                        return t.getStud_type().trim().equalsIgnoreCase("RESIDENTIAL");
+                    })
+                    .map(t -> new GenericDropdownDTO(t.getStud_type_id(), t.getStud_type()))
+                    .collect(Collectors.toList());
+        }
+
+        // 3. "DAY SCHOLAR" -> Show only Day Scholar
+        if (campusType.contains("DAY") || campusType.contains("DS")) {
+            return allTypes.stream()
+                    .filter(t -> t.getStud_type().toUpperCase().contains("DAY"))
+                    .map(t -> new GenericDropdownDTO(t.getStud_type_id(), t.getStud_type()))
+                    .collect(Collectors.toList());
+        }
+
+        // Default or unknown cases (return all or empty? User logic implies strict
+        // mapping, but safety fallback is good)
+        // Returning empty list for now if no match to avoid showing wrong data
+        return Collections.emptyList();
     }
 
     // @Cacheable(value = "orientationsByCampusClassStudyType", key = "{#cmpsId,
