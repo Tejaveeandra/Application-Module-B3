@@ -238,14 +238,14 @@ public class StudentAdmissionService {
     }
 
     public OrientationFeeAndDatesDTO getFeeAndDates(Integer orientationId) {
-        OrientationFeeAndDatesDTO result = cmpsOrientationBatchFeeViewRepo
+        List<OrientationFeeAndDatesDTO> result = cmpsOrientationBatchFeeViewRepo
                 .getOrientationFeeAndDatesDistinct(orientationId);
 
-        if (result == null) {
+        if (result == null || result.isEmpty()) {
             throw new RuntimeException("No orientation details found for ID: " + orientationId);
         }
 
-        return result;
+        return result.get(0);
     }
 
     public OrientationFeeAndDatesDTO getFeeAndDates(Integer orientationId, Integer cmpsId) {
@@ -253,15 +253,15 @@ public class StudentAdmissionService {
             return getFeeAndDates(orientationId);
         }
 
-        OrientationFeeAndDatesDTO result = cmpsOrientationBatchFeeViewRepo
+        List<OrientationFeeAndDatesDTO> result = cmpsOrientationBatchFeeViewRepo
                 .getOrientationFeeAndDatesByOrientationAndCampus(orientationId, cmpsId);
 
-        if (result == null) {
+        if (result == null || result.isEmpty()) {
             throw new RuntimeException(
                     "No orientation details found for ID: " + orientationId + " and Campus ID: " + cmpsId);
         }
 
-        return result;
+        return result.get(0);
     }
 
     public List<GenericDropdownDTO> getByCategoryAndDistrict(Integer newDistrictId, String category) {
@@ -472,15 +472,15 @@ public class StudentAdmissionService {
 
     public OrientationFeeAndDatesDTO getFeeAndDatesByCampusClassAndOrientation(Integer orientationId, Integer cmpsId,
             Integer classId) {
-        OrientationFeeAndDatesDTO result = cmpsOrientationBatchFeeViewRepo
+        List<OrientationFeeAndDatesDTO> result = cmpsOrientationBatchFeeViewRepo
                 .getOrientationFeeAndDatesByCampusClassAndOrientation(orientationId, cmpsId, classId);
 
-        if (result == null) {
+        if (result == null || result.isEmpty()) {
             throw new RuntimeException("No orientation details found for orientationId: " + orientationId + ", cmpsId: "
                     + cmpsId + ", classId: " + classId);
         }
 
-        return result;
+        return result.get(0);
     }
 
     private OrientationResponseDTO convertToOrientationResponseDto(CmpsOrientationBatchFeeView entity) {
