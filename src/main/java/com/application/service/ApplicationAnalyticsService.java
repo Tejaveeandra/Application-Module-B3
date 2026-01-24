@@ -3197,19 +3197,19 @@ public class ApplicationAnalyticsService {
         MetricsDataDTO dto = new MetricsDataDTO();
         try {
             // ============================================================
-            // FOR METRIC CARDS: Use Academic Year based on March 1st transition
+            // FOR METRIC CARDS: Show current year before March 1st, future year after March 1st
             // ============================================================
-            // Academic year transitions on March 1st:
-            // - Before March 1st: Show 26-27 (acdcYearId = 27, year = 2026)
-            // - On/After March 1st: Show 27-28 (acdcYearId = 28, year = 2027)
+            // Academic year for metric cards:
+            // - Before March 1st: Show current academic year (e.g., Jan 2026 → shows 2026-27, year = 2026)
+            // - On/After March 1st: Show future academic year (e.g., March 2026 → shows 2027-28, year = 2027)
             java.time.LocalDate today = java.time.LocalDate.now();
             int currentCalendarYear = today.getYear();
             int currentMonth = today.getMonthValue();
             
             // Calculate the academic year value for metric cards
-            // Before March 1st: Use currentCalendarYear - 1 (e.g., Jan 2026 → year = 2025 → shows 2025-26)
-            // On/After March 1st: Use currentCalendarYear (e.g., March 2026 → year = 2026 → shows 2026-27)
-            int cardsAcademicYearValue = (currentMonth >= 3) ? currentCalendarYear : (currentCalendarYear - 1);
+            // Before March 1st: Use currentCalendarYear (e.g., Jan 2026 → year = 2026 → shows 2026-27)
+            // On/After March 1st: Use currentCalendarYear + 1 (e.g., March 2026 → year = 2027 → shows 2027-28) - FUTURE YEAR
+            int cardsAcademicYearValue = (currentMonth >= 3) ? (currentCalendarYear + 1) : currentCalendarYear;
             
             System.out.println("========================================");
             System.out.println("METRIC CARDS ACADEMIC YEAR CALCULATION");
@@ -3217,8 +3217,8 @@ public class ApplicationAnalyticsService {
             System.out.println("Current Month: " + currentMonth);
             System.out.println("Cards Academic Year Value (year field to search): " + cardsAcademicYearValue);
             System.out.println("Expected: " + (currentMonth >= 3 ? 
-                    "After March 1st → year=" + currentCalendarYear + " → shows " + currentCalendarYear + "-" + (currentCalendarYear + 1) : 
-                    "Before March 1st → year=" + (currentCalendarYear - 1) + " → shows " + (currentCalendarYear - 1) + "-" + currentCalendarYear));
+                    "After March 1st → year=" + (currentCalendarYear + 1) + " → shows " + (currentCalendarYear + 1) + "-" + (currentCalendarYear + 2) + " (FUTURE YEAR)" : 
+                    "Before March 1st → year=" + currentCalendarYear + " → shows " + currentCalendarYear + "-" + (currentCalendarYear + 1)));
             System.out.println("========================================");
             
             // Find the academic year entity for metric cards
