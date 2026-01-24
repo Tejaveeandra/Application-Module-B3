@@ -46,9 +46,10 @@ public class ApplicationStatusViewController {
     @GetMapping("/status-by-role")
     public ResponseEntity<List<AppStatusTrackView>> getStatusByRole(
             @RequestParam("empId") int empId,
-            @RequestParam("category") String category) {
+            @RequestParam("category") String category,
+            @RequestParam(value = "yearIds", required = false) List<Integer> yearIds) {
         
-        List<AppStatusTrackView> result = applicationStatusViewService.getApplicationStatusByRole(empId, category);
+        List<AppStatusTrackView> result = applicationStatusViewService.getApplicationStatusByRole(empId, category, yearIds);
         return ResponseEntity.ok(result);
     }
     

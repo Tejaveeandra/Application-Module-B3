@@ -40,7 +40,7 @@ public class ApplicationStatusViewService {
         }
     }
 
-    public List<AppStatusTrackView> getApplicationStatusByRole(int empId, String category) {
+    public List<AppStatusTrackView> getApplicationStatusByRole(int empId, String category, List<Integer> yearIds) {
         // 1. Fetch Employee
         SCEmployeeEntity employee = scEmployeeRepository.findById(empId)
                 .orElseThrow(() -> new RuntimeException("Employee not found with ID: " + empId));
@@ -51,6 +51,7 @@ public class ApplicationStatusViewService {
         System.out.println("Raw Role from DB: '" + employee.getEmpStudApplicationRole() + "'");
         System.out.println("Raw Category from DB: '" + employee.getCategory() + "'");
         System.out.println("Input Category Param: '" + category + "'");
+        System.out.println("Input Year IDs: " + yearIds);
 
         // 2. Normalize Role (Handle nulls and Case)
         String role = (employee.getEmpStudApplicationRole() != null)
@@ -74,37 +75,55 @@ public class ApplicationStatusViewService {
             case "ADMIN":
                 // Returns all (filtered by category if provided)
                 if (businessId != null) {
-                    return appStatusTrackViewRepository.findAllByBusinessId(businessId);
+                    return (yearIds != null && !yearIds.isEmpty())
+                            ? appStatusTrackViewRepository.findAllByBusinessIdAndYearIds(businessId, yearIds)
+                            : appStatusTrackViewRepository.findAllByBusinessId(businessId);
                 }
-                return appStatusTrackViewRepository.findAllByCategory(category);
+                return (yearIds != null && !yearIds.isEmpty())
+                        ? appStatusTrackViewRepository.findAllByCategoryAndYearIds(category, yearIds)
+                        : appStatusTrackViewRepository.findAllByCategory(category);
 
             case "ZONAL ACCOUNTANT":
                 if (businessId != null) {
-                    return appStatusTrackViewRepository.findByZone_idAndBusinessId(employee.getZoneId(), businessId);
+                    return (yearIds != null && !yearIds.isEmpty())
+                            ? appStatusTrackViewRepository.findByZone_idAndBusinessIdAndYearIds(employee.getZoneId(), businessId, yearIds)
+                            : appStatusTrackViewRepository.findByZone_idAndBusinessId(employee.getZoneId(), businessId);
                 }
-                return appStatusTrackViewRepository.findByZone_id(employee.getZoneId());
+                return (yearIds != null && !yearIds.isEmpty())
+                        ? appStatusTrackViewRepository.findByZone_idAndYearIds(employee.getZoneId(), yearIds)
+                        : appStatusTrackViewRepository.findByZone_id(employee.getZoneId());
 
             case "DGM":
                 if (businessId != null) {
-                    return appStatusTrackViewRepository.findByDgm_emp_idAndBusinessId(empId, businessId);
+                    return (yearIds != null && !yearIds.isEmpty())
+                            ? appStatusTrackViewRepository.findByDgm_emp_idAndBusinessIdAndYearIds(empId, businessId, yearIds)
+                            : appStatusTrackViewRepository.findByDgm_emp_idAndBusinessId(empId, businessId);
                 }
-                return appStatusTrackViewRepository.findByDgm_emp_id(empId);
+                return (yearIds != null && !yearIds.isEmpty())
+                        ? appStatusTrackViewRepository.findByDgm_emp_idAndYearIds(empId, yearIds)
+                        : appStatusTrackViewRepository.findByDgm_emp_id(empId);
 
             case "CAMPUS":
                 if (businessId != null) {
-                    return appStatusTrackViewRepository.findByCmps_idAndBusinessId(employee.getEmpCampusId(),
-                            businessId);
+                    return (yearIds != null && !yearIds.isEmpty())
+                            ? appStatusTrackViewRepository.findByCmps_idAndBusinessIdAndYearIds(employee.getEmpCampusId(), businessId, yearIds)
+                            : appStatusTrackViewRepository.findByCmps_idAndBusinessId(employee.getEmpCampusId(), businessId);
                 }
-                return appStatusTrackViewRepository.findByCmps_id(employee.getEmpCampusId());
+                return (yearIds != null && !yearIds.isEmpty())
+                        ? appStatusTrackViewRepository.findByCmps_idAndYearIds(employee.getEmpCampusId(), yearIds)
+                        : appStatusTrackViewRepository.findByCmps_id(employee.getEmpCampusId());
 
             case "PRO":
                 System.out.println("Matched Case: PRO - Expanding visibility to campus-wide data");
                 // Expand visibility: Show all applications for the PRO's assigned campus
                 if (businessId != null) {
-                    return appStatusTrackViewRepository.findByCmps_idAndBusinessId(employee.getEmpCampusId(),
-                            businessId);
+                    return (yearIds != null && !yearIds.isEmpty())
+                            ? appStatusTrackViewRepository.findByCmps_idAndBusinessIdAndYearIds(employee.getEmpCampusId(), businessId, yearIds)
+                            : appStatusTrackViewRepository.findByCmps_idAndBusinessId(employee.getEmpCampusId(), businessId);
                 }
-                return appStatusTrackViewRepository.findByCmps_id(employee.getEmpCampusId());
+                return (yearIds != null && !yearIds.isEmpty())
+                        ? appStatusTrackViewRepository.findByCmps_idAndYearIds(employee.getEmpCampusId(), yearIds)
+                        : appStatusTrackViewRepository.findByCmps_id(employee.getEmpCampusId());
 
             default:
                 System.out.println("!! NO MATCH FOUND !! Role: " + role);

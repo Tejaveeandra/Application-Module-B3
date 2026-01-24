@@ -30,4 +30,8 @@ public class AppStatusTrackView {
 	private String cmps_name;
 	private String status;
 	private LocalDateTime date;
+	@Column(name = "acdc_year_id")
+	private Integer acdc_year_id;
+	@Column(name = "academic_year")
+	private String academic_year;
 }

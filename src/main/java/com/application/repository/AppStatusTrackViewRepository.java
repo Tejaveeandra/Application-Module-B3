@@ -238,6 +238,43 @@ public interface AppStatusTrackViewRepository extends JpaRepository<AppStatusTra
     @Query("SELECT a FROM AppStatusTrackView a WHERE a.cmps_id IN (SELECT c.campusId FROM Campus c WHERE c.businessType.businessTypeId = :businessId) ORDER BY a.date DESC")
     List<AppStatusTrackView> findAllByBusinessId(@Param("businessId") int businessId);
 
+    // --- Filtered Queries by Academic Year IDs ---
+
+    @Query("SELECT a FROM AppStatusTrackView a WHERE a.cmps_id IN (SELECT c.campusId FROM Campus c WHERE c.businessType.businessTypeId = :businessId) " +
+            "AND a.acdc_year_id IN :yearIds ORDER BY a.date DESC")
+    List<AppStatusTrackView> findAllByBusinessIdAndYearIds(@Param("businessId") int businessId, @Param("yearIds") List<Integer> yearIds);
+
+    @Query("SELECT a FROM AppStatusTrackView a JOIN SCEmployeeEntity e ON a.pro_emp_id = e.empId " +
+            "WHERE LOWER(e.category) = LOWER(:category) AND a.acdc_year_id IN :yearIds ORDER BY a.date DESC")
+    List<AppStatusTrackView> findAllByCategoryAndYearIds(@Param("category") String category, @Param("yearIds") List<Integer> yearIds);
+
+    @Query("SELECT a FROM AppStatusTrackView a WHERE a.zone_id = :zoneId AND a.acdc_year_id IN :yearIds ORDER BY a.date DESC")
+    List<AppStatusTrackView> findByZone_idAndYearIds(@Param("zoneId") int zoneId, @Param("yearIds") List<Integer> yearIds);
+
+    @Query("SELECT a FROM AppStatusTrackView a WHERE a.zone_id = :zoneId " +
+            "AND a.cmps_id IN (SELECT c.campusId FROM Campus c WHERE c.businessType.businessTypeId = :businessId) " +
+            "AND a.acdc_year_id IN :yearIds ORDER BY a.date DESC")
+    List<AppStatusTrackView> findByZone_idAndBusinessIdAndYearIds(@Param("zoneId") int zoneId,
+            @Param("businessId") int businessId, @Param("yearIds") List<Integer> yearIds);
+
+    @Query("SELECT a FROM AppStatusTrackView a WHERE a.dgm_emp_id = :dgmEmpId AND a.acdc_year_id IN :yearIds ORDER BY a.date DESC")
+    List<AppStatusTrackView> findByDgm_emp_idAndYearIds(@Param("dgmEmpId") int dgmEmpId, @Param("yearIds") List<Integer> yearIds);
+
+    @Query("SELECT a FROM AppStatusTrackView a WHERE a.dgm_emp_id = :dgmEmpId " +
+            "AND a.cmps_id IN (SELECT c.campusId FROM Campus c WHERE c.businessType.businessTypeId = :businessId) " +
+            "AND a.acdc_year_id IN :yearIds ORDER BY a.date DESC")
+    List<AppStatusTrackView> findByDgm_emp_idAndBusinessIdAndYearIds(@Param("dgmEmpId") int dgmEmpId,
+            @Param("businessId") int businessId, @Param("yearIds") List<Integer> yearIds);
+
+    @Query("SELECT a FROM AppStatusTrackView a WHERE a.cmps_id = :cmpsId AND a.acdc_year_id IN :yearIds ORDER BY a.date DESC")
+    List<AppStatusTrackView> findByCmps_idAndYearIds(@Param("cmpsId") int cmpsId, @Param("yearIds") List<Integer> yearIds);
+
+    @Query("SELECT a FROM AppStatusTrackView a WHERE a.cmps_id = :cmpsId " +
+            "AND a.cmps_id IN (SELECT c.campusId FROM Campus c WHERE c.businessType.businessTypeId = :businessId) " +
+            "AND a.acdc_year_id IN :yearIds ORDER BY a.date DESC")
+    List<AppStatusTrackView> findByCmps_idAndBusinessIdAndYearIds(@Param("cmpsId") int cmpsId,
+            @Param("businessId") int businessId, @Param("yearIds") List<Integer> yearIds);
+
     // Get year-wise sold, fast sale, and confirmed for admin distributions with
     // amount filter
     // Sold = "not confirmed" or "fast sale" (with variations)
