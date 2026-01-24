@@ -644,56 +644,54 @@ public class StudentAdmissionService {
         Float applicationFee = null;
         Float amount = null;
 
-        // Check if Business Type is SCHOOL (Case Intensitive)
+        // Step 1: Always fetch default fees from AdminApp (Source of Truth for
+        // 'amount')
+        logger.info("Fetching fees from AdminApp (Default) for App No: {} and Academic Year ID: {}",
+                applicationNo, academicYearId);
+
+        Optional<AdminApp> adminAppOpt = adminAppRepository
+                .findActiveAdminAppByAppNoAndAcademicYear(applicationNo, academicYearId);
+
+        if (adminAppOpt.isPresent()) {
+            AdminApp adminApp = adminAppOpt.get();
+
+            // Map app_fee (Integer) → Float for DTO.applicationFee
+            Integer appFeeInt = adminApp.getApp_fee();
+            applicationFee = (appFeeInt != null) ? appFeeInt.floatValue() : null;
+
+            // Map app_amount (Double) → Float for DTO.amount
+            Double appAmountDouble = adminApp.getApp_amount();
+            amount = (appAmountDouble != null) ? appAmountDouble.floatValue() : applicationFee;
+
+            logger.debug("Fees fetched from AdminApp → amount: {}, applicationFee: {}", amount, applicationFee);
+        } else {
+            logger.warn(
+                    "No active AdminApp record found for Application No: {} and AcademicYearId: {}. Fees will be null.",
+                    applicationNo, academicYearId);
+        }
+
+        // Step 2: If Business Type is SCHOOL, override 'applicationFee' from
+        // CampusDetails
         boolean isSchool = businessTypeName != null && businessTypeName.trim().equalsIgnoreCase("SCHOOL");
 
         if (isSchool) {
-            logger.info("Fetching fees from CampusDetails (SCHOOL) for Campus ID: {} and Academic Year ID: {}",
-                    campusId, academicYearId);
+            logger.info("Business Type is SCHOOL. Checking CampusDetails for fee override. Campus ID: {}", campusId);
 
             Optional<CampusDetails> campusDetailsOpt = campusDetailsRepository
                     .findByCampusCampusIdAndAcademicYearAcdcYearId(campusId, academicYearId);
 
             if (campusDetailsOpt.isPresent()) {
                 CampusDetails cd = campusDetailsOpt.get();
+                // Override applicationFee
                 applicationFee = cd.getApp_fee();
-                amount = applicationFee; // For School, amount is typically same as fee
+                // IMPORTANT: Do NOT override 'amount' here. Keep value from AdminApp.
 
-                logger.debug("Fees fetched from CampusDetails → amount: {}, applicationFee: {}", amount,
-                        applicationFee);
+                logger.debug("SCHOOL OVERRIDE: applicationFee updated to {} from CampusDetails. 'amount' remains {}",
+                        applicationFee, amount);
             } else {
                 logger.warn(
-                        "CampusDetails not found for School Campus ID: {} and Academic Year ID: {}. Fees will be null.",
+                        "CampusDetails not found for School Campus ID: {} and Academic Year ID: {}. Keeping AdminApp fee.",
                         campusId, academicYearId);
-            }
-
-        } else {
-            // COLLEGE Logic (Fetch from AdminApp)
-            logger.info("Fetching fees from AdminApp (COLLEGE/OTHER) for App No: {} and Academic Year ID: {}",
-                    applicationNo,
-                    academicYearId);
-
-            Optional<AdminApp> adminAppOpt = adminAppRepository
-                    .findActiveAdminAppByAppNoAndAcademicYear(applicationNo, academicYearId);
-
-            if (adminAppOpt.isPresent()) {
-                AdminApp adminApp = adminAppOpt.get();
-
-                // Map app_fee (Integer) → Float for DTO.applicationFee
-                Integer appFeeInt = adminApp.getApp_fee();
-                applicationFee = (appFeeInt != null) ? appFeeInt.floatValue() : null;
-
-                // Map app_amount (Double) → Float for DTO.amount
-                // If app_amount is null, fallback to applicationFee so 'amount' is populated
-                // for Schools too (if they fallback here)
-                Double appAmountDouble = adminApp.getApp_amount();
-                amount = (appAmountDouble != null) ? appAmountDouble.floatValue() : applicationFee;
-
-                logger.debug("Fees fetched from AdminApp → amount: {}, applicationFee: {}", amount, applicationFee);
-            } else {
-                logger.warn(
-                        "No active AdminApp record found for Application No: {} and AcademicYearId: {}. Fees will be null.",
-                        applicationNo, academicYearId);
             }
         }
 
