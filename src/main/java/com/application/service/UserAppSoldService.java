@@ -74,36 +74,38 @@ public class UserAppSoldService {
 		java.time.LocalDate today = java.time.LocalDate.now();
 		int currentCalendarYear = today.getYear();
 		int currentMonth = today.getMonthValue();
-		
+
 		// Calculate the academic year value for performance data
 		// Before March 1st: Use current year (e.g., 2026 → shows 26-27, acdcYearId 27)
-		// On/After March 1st: Use current year + 1 (e.g., 2027 → shows 27-28, acdcYearId 28)
+		// On/After March 1st: Use current year + 1 (e.g., 2027 → shows 27-28,
+		// acdcYearId 28)
 		int performanceAcademicYearValue = (currentMonth >= 3) ? (currentCalendarYear + 1) : currentCalendarYear;
-		
+
 		System.out.println("========================================");
 		System.out.println("PERFORMANCE DATA ACADEMIC YEAR CALCULATION");
 		System.out.println("Current Calendar Year: " + currentCalendarYear);
 		System.out.println("Current Month: " + currentMonth);
 		System.out.println("Performance Academic Year Value (year field to search): " + performanceAcademicYearValue);
-		System.out.println("Expected: " + (currentMonth >= 3 ? 
-				"After March 1st → year=2027 → acdcYearId=28 (2027-28)" : 
-				"Before March 1st → year=2026 → acdcYearId=27 (2026-27)"));
+		System.out.println("Expected: " + (currentMonth >= 3 ? "After March 1st → year=2027 → acdcYearId=28 (2027-28)"
+				: "Before March 1st → year=2026 → acdcYearId=27 (2026-27)"));
 		System.out.println("========================================");
-		
+
 		// Find the academic year entity for performance data
 		java.util.Optional<com.application.entity.AcademicYear> yearEntityOpt = academicYearRepository
 				.findByYearAndIsActive(performanceAcademicYearValue, 1);
-		
+
 		Integer yearId = null;
 		if (yearEntityOpt.isPresent()) {
 			yearId = yearEntityOpt.get().getAcdcYearId();
-			System.out.println("✅ PERFORMANCE DATA: Found academic year - acdcYearId: " + yearId + 
-					", year: " + yearEntityOpt.get().getYear() + 
+			System.out.println("✅ PERFORMANCE DATA: Found academic year - acdcYearId: " + yearId +
+					", year: " + yearEntityOpt.get().getYear() +
 					", academicYear: " + yearEntityOpt.get().getAcademicYear());
 		} else {
 			// If academic year not found, try to find the latest active year as fallback
-			System.out.println("PERFORMANCE DATA: Academic year with year=" + performanceAcademicYearValue + " not found, trying fallback...");
-			java.util.List<com.application.entity.AcademicYear> allActiveYears = academicYearRepository.findAllActiveOrderedByYearDesc();
+			System.out.println("PERFORMANCE DATA: Academic year with year=" + performanceAcademicYearValue
+					+ " not found, trying fallback...");
+			java.util.List<com.application.entity.AcademicYear> allActiveYears = academicYearRepository
+					.findAllActiveOrderedByYearDesc();
 			if (allActiveYears != null && !allActiveYears.isEmpty()) {
 				yearId = allActiveYears.get(0).getAcdcYearId();
 				System.out.println("PERFORMANCE DATA: Using fallback - acdcYearId: " + yearId);
@@ -146,6 +148,11 @@ public class UserAppSoldService {
 					campusIds = userAppSoldRepository.findCampusIdsByDgmId(empId);
 					System.out.println("DGM Logged In (" + empId + "). Fetched Campus IDs: " + campusIds);
 				}
+				// LOGIC: IF ADMIN -> Show All (No Filtering)
+				else if ("ADMIN".equalsIgnoreCase(userRole)) {
+					System.out.println("ADMIN Logged In (" + empId + "). Fetching ALL data (No Filter).");
+					// dgmIds and campusIds remain null, so all will be fetched.
+				}
 			}
 		}
 
@@ -166,6 +173,10 @@ public class UserAppSoldService {
 				} else if ("DGM".equalsIgnoreCase(userRole) || "DIVISIONAL_OFFICER".equalsIgnoreCase(userRole)) {
 					showZone = false; // DGM/Divisional Officer: Campuses only
 					showDgm = false;
+					showCampus = true;
+				} else if ("ADMIN".equalsIgnoreCase(userRole)) {
+					showZone = true;
+					showDgm = true;
 					showCampus = true;
 				}
 			}
@@ -423,7 +434,8 @@ public class UserAppSoldService {
 		List<PerformanceDTO> performanceList = mapToPerformanceDTO(raw);
 
 		// 5️⃣ Apply Top/Drop logic
-		return processAnalytics("campus", "DGM_CAMPUS", "Application Drop Rate Branch Wise", "Application Top Rate Branch Wise",
+		return processAnalytics("campus", "DGM_CAMPUS", "Application Drop Rate Branch Wise",
+				"Application Top Rate Branch Wise",
 				performanceList);
 	}
 
