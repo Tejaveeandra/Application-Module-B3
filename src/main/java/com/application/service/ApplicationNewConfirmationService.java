@@ -553,12 +553,8 @@ public class ApplicationNewConfirmationService {
                 concession.setConc_referred_by(concDto.getConcReferedBy());
 
                 // For awards, use authorizedById for conc_issued_by
-                boolean isAward = concession.getConcessionType() != null 
-                    && concession.getConcessionType().getConc_type() != null
-                    && concession.getConcessionType().getConc_type().toLowerCase().contains("award");
-                
-                if (isAward && concDto.getAuthorizedById() != null) {
-                    // For awards: use authorizedById for issued_by
+                // If authorizedById is provided, use it for issued_by (treating it as an award)
+                if (concDto.getAuthorizedById() != null) {
                     concession.setConc_issued_by(concDto.getAuthorizedById());
                 }
                 if (concDto.getAuthorizedById() != null) {
