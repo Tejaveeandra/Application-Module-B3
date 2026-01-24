@@ -640,35 +640,61 @@ public class StudentAdmissionService {
         String academicYearString = academicYear.getAcademicYear();
         logger.debug("Found BalanceTrack: AcademicYearId={}, AcademicYear='{}'", academicYearId, academicYearString);
 
-        // 5. Determine Fees based on Business Type (Unified to fetch from AdminApp for
-        // both School and College)
+        // 5. Determine Fees based on Business Type
         Float applicationFee = null;
         Float amount = null;
 
-        logger.info("Fetching fees from AdminApp table for App No: {} and Academic Year ID: {}", applicationNo,
-                academicYearId);
+        // Check if Business Type is SCHOOL (Case Intensitive)
+        boolean isSchool = businessTypeName != null && businessTypeName.trim().equalsIgnoreCase("SCHOOL");
 
-        Optional<AdminApp> adminAppOpt = adminAppRepository
-                .findActiveAdminAppByAppNoAndAcademicYear(applicationNo, academicYearId);
+        if (isSchool) {
+            logger.info("Fetching fees from CampusDetails (SCHOOL) for Campus ID: {} and Academic Year ID: {}",
+                    campusId, academicYearId);
 
-        if (adminAppOpt.isPresent()) {
-            AdminApp adminApp = adminAppOpt.get();
+            Optional<CampusDetails> campusDetailsOpt = campusDetailsRepository
+                    .findByCampusCampusIdAndAcademicYearAcdcYearId(campusId, academicYearId);
 
-            // Map app_fee (Integer) → Float for DTO.applicationFee
-            Integer appFeeInt = adminApp.getApp_fee();
-            applicationFee = (appFeeInt != null) ? appFeeInt.floatValue() : null;
+            if (campusDetailsOpt.isPresent()) {
+                CampusDetails cd = campusDetailsOpt.get();
+                applicationFee = cd.getApp_fee();
+                amount = applicationFee; // For School, amount is typically same as fee
 
-            // Map app_amount (Double) → Float for DTO.amount
-            // If app_amount is null, fallback to applicationFee so 'amount' is populated
-            // for Schools too
-            Double appAmountDouble = adminApp.getApp_amount();
-            amount = (appAmountDouble != null) ? appAmountDouble.floatValue() : applicationFee;
+                logger.debug("Fees fetched from CampusDetails → amount: {}, applicationFee: {}", amount,
+                        applicationFee);
+            } else {
+                logger.warn(
+                        "CampusDetails not found for School Campus ID: {} and Academic Year ID: {}. Fees will be null.",
+                        campusId, academicYearId);
+            }
 
-            logger.debug("Fees fetched from AdminApp → amount: {}, applicationFee: {}", amount, applicationFee);
         } else {
-            logger.warn(
-                    "No active AdminApp record found for Application No: {} and AcademicYearId: {}. Fees will be null.",
-                    applicationNo, academicYearId);
+            // COLLEGE Logic (Fetch from AdminApp)
+            logger.info("Fetching fees from AdminApp (COLLEGE/OTHER) for App No: {} and Academic Year ID: {}",
+                    applicationNo,
+                    academicYearId);
+
+            Optional<AdminApp> adminAppOpt = adminAppRepository
+                    .findActiveAdminAppByAppNoAndAcademicYear(applicationNo, academicYearId);
+
+            if (adminAppOpt.isPresent()) {
+                AdminApp adminApp = adminAppOpt.get();
+
+                // Map app_fee (Integer) → Float for DTO.applicationFee
+                Integer appFeeInt = adminApp.getApp_fee();
+                applicationFee = (appFeeInt != null) ? appFeeInt.floatValue() : null;
+
+                // Map app_amount (Double) → Float for DTO.amount
+                // If app_amount is null, fallback to applicationFee so 'amount' is populated
+                // for Schools too (if they fallback here)
+                Double appAmountDouble = adminApp.getApp_amount();
+                amount = (appAmountDouble != null) ? appAmountDouble.floatValue() : applicationFee;
+
+                logger.debug("Fees fetched from AdminApp → amount: {}, applicationFee: {}", amount, applicationFee);
+            } else {
+                logger.warn(
+                        "No active AdminApp record found for Application No: {} and AcademicYearId: {}. Fees will be null.",
+                        applicationNo, academicYearId);
+            }
         }
 
         // 6. Build and return DTO
