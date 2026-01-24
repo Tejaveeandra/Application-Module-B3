@@ -2,9 +2,11 @@
 package com.application.service;
  
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
  
 import org.springframework.beans.factory.annotation.Autowired;
@@ -52,18 +54,18 @@ public class AdminDashboardService {
     public DashboardResponseDTO getDashboardData(Integer employeeId) {
        
         // ============================================================
-        // FOR METRIC CARDS: Use Academic Year based on March 1st transition
+        // FOR METRIC CARDS: Show current year before March 1st, future year after March 1st
         // ============================================================
-        // Academic year transitions on March 1st:
-        // - Before March 1st: Show 26-27 (acdcYearId = 27, year = 2026)
-        // - On/After March 1st: Show 27-28 (acdcYearId = 28, year = 2027)
+        // Academic year for metric cards:
+        // - Before March 1st: Show current academic year (e.g., Jan 2026 → shows 2026-27, year = 2026)
+        // - On/After March 1st: Show future academic year (e.g., March 2026 → shows 2027-28, year = 2027)
         java.time.LocalDate today = java.time.LocalDate.now();
         int currentCalendarYear = today.getYear();
         int currentMonth = today.getMonthValue();
         
         // Calculate the academic year value for metric cards
-        // Before March 1st: Use current year (e.g., 2026 → shows 26-27, acdcYearId 27)
-        // On/After March 1st: Use current year + 1 (e.g., 2027 → shows 27-28, acdcYearId 28)
+        // Before March 1st: Use currentCalendarYear (e.g., Jan 2026 → year = 2026 → shows 2026-27)
+        // On/After March 1st: Use currentCalendarYear + 1 (e.g., March 2026 → year = 2027 → shows 2027-28) - FUTURE YEAR
         int cardsAcademicYearValue = (currentMonth >= 3) ? (currentCalendarYear + 1) : currentCalendarYear;
         
         System.out.println("========================================");
@@ -72,8 +74,8 @@ public class AdminDashboardService {
         System.out.println("Current Month: " + currentMonth);
         System.out.println("Cards Academic Year Value (year field to search): " + cardsAcademicYearValue);
         System.out.println("Expected: " + (currentMonth >= 3 ? 
-                "After March 1st → year=2027 → acdcYearId=28 (2027-28)" : 
-                "Before March 1st → year=2026 → acdcYearId=27 (2026-27)"));
+                "After March 1st → year=" + (currentCalendarYear + 1) + " → shows " + (currentCalendarYear + 1) + "-" + (currentCalendarYear + 2) + " (FUTURE YEAR)" : 
+                "Before March 1st → year=" + currentCalendarYear + " → shows " + currentCalendarYear + "-" + (currentCalendarYear + 1)));
         System.out.println("========================================");
         
         // Find the academic year entity for metric cards
@@ -164,62 +166,31 @@ public class AdminDashboardService {
         metricCards.add(new MetricCardDTO("With PRO", (int) currWithPro, withProPercentageChange, "with_pro"));
  
         // ============================================================
-        // FOR GRAPH: Use current academic year logic (as before)
+        // FOR GRAPH: Use current academic year (not future year)
         // ============================================================
-        // Get current academic year from AcademicYear table (not MAX year from AdminApp)
-        // Academic year transitions on March 1st:
-        // - Before March 1st: current academic year = (current calendar year - 1)
-        //   Example: Feb 28, 2026 → academic year 2025-26 (year = 2025)
-        // - On/After March 1st: current academic year = current calendar year
-        //   Example: March 1, 2026 → academic year 2026-27 (year = 2026)
-        int currentAcademicYearValue = (currentMonth >= 3) ? currentCalendarYear : (currentCalendarYear - 1);
+        // Graph should show current academic year based on March 1st, then show 4 years (current + 3 past)
+        // - Before March 1st: current academic year = (currentCalendarYear - 1) - currentCalendarYear
+        // - On/After March 1st: current academic year = currentCalendarYear - (currentCalendarYear + 1)
+        int graphAcademicYearValue = (currentMonth >= 3) ? currentCalendarYear : (currentCalendarYear - 1);
         
-        // Find the current academic year entity
-        java.util.Optional<AcademicYear> currentYearEntityOpt = academicYearRepository
-                .findByYearAndIsActive(currentAcademicYearValue, 1);
+        // Find the current academic year entity for graph
+        java.util.Optional<AcademicYear> graphYearEntityOpt = academicYearRepository
+                .findByYearAndIsActive(graphAcademicYearValue, 1);
         
-        Integer currentYearId = null;
-        Integer actualCurrentYearId = null;
-        
-        if (currentYearEntityOpt.isPresent()) {
-            // Store the actual current academic year ID
-            actualCurrentYearId = currentYearEntityOpt.get().getAcdcYearId();
-            
-            // Verify that this employee has data for the current year
-            Long currentYearTotal = adminAppRepository.sumTotalAppByEmployeeAndAcademicYear(employeeId, actualCurrentYearId);
-            if (currentYearTotal != null && currentYearTotal > 0) {
-                // Employee has data for current year, use it
-                currentYearId = actualCurrentYearId;
-            } else {
-                // If no data for current year, fall back to latest year where employee has data
-                // But only consider years up to the current year (not future years)
-                Integer latestYearId = adminAppRepository.findLatestYearIdByEmployee(employeeId);
-                if (latestYearId != null && latestYearId <= actualCurrentYearId) {
-                    // Use the latest year if it's not in the future
-                    currentYearId = latestYearId;
-                } else {
-                    // If latest year is in the future, use current year instead
-                    currentYearId = actualCurrentYearId;
-                }
-            }
+        Integer graphCurrentYearId = null;
+        if (graphYearEntityOpt.isPresent()) {
+            graphCurrentYearId = graphYearEntityOpt.get().getAcdcYearId();
+            System.out.println("Graph: Using current academic year - acdcYearId: " + graphCurrentYearId + 
+                    ", year: " + graphYearEntityOpt.get().getYear() + 
+                    ", academicYear: " + graphYearEntityOpt.get().getAcademicYear());
         } else {
-            // If current year not found in AcademicYear table, fall back to latest year from AdminApp
-            currentYearId = adminAppRepository.findLatestYearIdByEmployee(employeeId);
+            // Fallback: Use cardsYearId if graph year not found
+            graphCurrentYearId = cardsYearId;
+            System.out.println("Graph: Fallback to cardsYearId: " + graphCurrentYearId);
         }
         
-        // If no year found for this employee, try to get latest year from AdminApp in general
-        if (currentYearId == null) {
-            currentYearId = adminAppRepository.findLatestYearIdFromAdminApp();
-        }
-        
-        // If still no year found for graph, use cardsYearId as fallback
-        if (currentYearId == null) {
-            currentYearId = cardsYearId;
-        }
-        
-        // Generate graph data for previous 4 years (current year + 3 previous years)
-        // Use currentYearId for graph (keeps existing behavior)
-        GraphResponseDTO graphData = generateGraphData(employeeId, currentYearId);
+        // Generate graph data for 4 years: current year + 3 previous years
+        GraphResponseDTO graphData = generateGraphData(employeeId, graphCurrentYearId);
  
         // Create response
         DashboardResponseDTO response = new DashboardResponseDTO();
@@ -415,10 +386,35 @@ public class AdminDashboardService {
             currentYearId = 0; // Default to 0 if null
         }
        
-        // Get previous 4 years (current year + 3 previous years)
+        // Get the current academic year entity to find its year field value
+        Optional<AcademicYear> currentYearEntityOpt = academicYearRepository.findById(currentYearId);
         List<Integer> yearIds = new ArrayList<>();
-        for (int i = 0; i < 4; i++) {
-            yearIds.add(currentYearId - i);
+        
+        if (currentYearEntityOpt.isPresent()) {
+            AcademicYear currentYearEntity = currentYearEntityOpt.get();
+            int currentYearValue = currentYearEntity.getYear();
+            
+            // Always show 4 years: current + 3 past years based on year field (not acdcYearId)
+            yearIds.add(currentYearId); // Current year
+            
+            // Get 3 previous years based on year field
+            for (int i = 1; i <= 3; i++) {
+                int previousYearValue = currentYearValue - i;
+                Optional<AcademicYear> previousYearEntity = academicYearRepository
+                        .findByYearAndIsActive(previousYearValue, 1);
+                if (previousYearEntity.isPresent()) {
+                    yearIds.add(previousYearEntity.get().getAcdcYearId());
+                }
+            }
+            
+            System.out.println("Graph: Using academic year logic - Current year=" + currentYearValue + "-" + (currentYearValue + 1) + 
+                    " (acdcYearId=" + currentYearId + "), Year IDs: " + yearIds);
+        } else {
+            // Fallback: Use sequential acdcYearId if academic year not found
+            for (int i = 0; i < 4; i++) {
+                yearIds.add(currentYearId - i);
+            }
+            System.out.println("Graph: Fallback - Using sequential acdcYearId, Year IDs: " + yearIds);
         }
        
         // Get AcademicYear entities for year labels
@@ -428,6 +424,9 @@ public class AdminDashboardService {
             yearMap = academicYears.stream()
                 .collect(Collectors.toMap(AcademicYear::getAcdcYearId, y -> y));
         }
+        
+        // Sort yearIds in descending order (newest first) for consistent display
+        yearIds.sort(Comparator.reverseOrder());
        
         // Build graph bar data for all 4 years - always return 4 years with zeros if no data
         // Calculate percentages by comparing each year with its previous year (like metric cards)

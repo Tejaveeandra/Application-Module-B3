@@ -2259,6 +2259,7 @@ public class ApplicationAnalyticsService {
         // zoneIdInt);
         // Use UserAppSold for graph data: entity_id = 2 for issued, entity_id = 4 for
         // sold
+        // Filter future years before March 1st for /api/analytics/{empId}
         analytics.setGraphData(getGraphData(
                 (yearId) -> {
                     // Get issued from UserAppSold with entity_id = 2 (Zone)
@@ -2290,7 +2291,8 @@ public class ApplicationAnalyticsService {
                             soldFromUserAppSold // Sold from entity_id = 4
                     ));
                 },
-                () -> userAppSoldRepository.findDistinctYearIdsByZoneId(zoneIdInt)));
+                () -> userAppSoldRepository.findDistinctYearIdsByZoneId(zoneIdInt),
+                true)); // Filter future years before March 1st
 
         // 2. Metrics Data
         // System.out.println("📈 Getting Metrics Data for Zone: " + zoneIdInt);
@@ -2432,9 +2434,11 @@ public class ApplicationAnalyticsService {
 
     public CombinedAnalyticsDTO getDgmAnalytics(Integer dgmEmpId) {
         CombinedAnalyticsDTO analytics = new CombinedAnalyticsDTO();
+        // Filter future years before March 1st for /api/analytics/{empId}
         analytics.setGraphData(getGraphData(
                 (yearId) -> userAppSoldRepository.getSalesSummaryByDgm(dgmEmpId, yearId),
-                () -> userAppSoldRepository.findDistinctYearIdsByDgm(dgmEmpId)));
+                () -> userAppSoldRepository.findDistinctYearIdsByDgm(dgmEmpId),
+                true)); // Filter future years before March 1st
         analytics.setMetricsData(
                 getMetricsData(
                         (yearId) -> appStatusTrackRepository.getMetricsByEmployeeAndYear(dgmEmpId, yearId),
@@ -2483,6 +2487,7 @@ public class ApplicationAnalyticsService {
         // Use UserAppSold for graph data - entity_id = 3 for issued (totalAppCount),
         // entity_id = 4 for sold
         // IMPORTANT: Ensure unique series - same series counted only once
+        // Filter future years before March 1st for /api/analytics/{empId}
         analytics.setGraphData(getGraphData(
                 (yearId) -> {
                     // Get issued and sold from UserAppSold with unique series (entity_id = 3 for
@@ -2522,7 +2527,8 @@ public class ApplicationAnalyticsService {
                     List<Integer> years = userAppSoldRepository.findDistinctYearIdsByCampusIds(campusIds);
                     System.out.println("✅ Returning " + years.size() + " years from UserAppSold: " + years);
                     return years;
-                }));
+                },
+                true)); // Filter future years before March 1st
         System.out.println("========================================");
         // 4. Get metrics data with distribution count added to issued count
         analytics.setMetricsData(
@@ -2649,6 +2655,7 @@ public class ApplicationAnalyticsService {
         // Use UserAppSold for graph data: entity_id = 4 for both issued (totalAppCount)
         // and sold
         System.out.println("Using UserAppSold - entity_id = 4 for issued (totalAppCount) and sold");
+        // Filter future years before March 1st for /api/analytics/{empId}
         analytics.setGraphData(getGraphData(
                 (yearId) -> {
                     // Get data from UserAppSold with entity_id = 4 for the campus
@@ -2668,7 +2675,8 @@ public class ApplicationAnalyticsService {
                 () -> {
                     // Find distinct years from UserAppSold (entity_id = 4)
                     return userAppSoldRepository.findDistinctYearIdsByCampusId(campusIdInt);
-                }));
+                },
+                true)); // Filter future years before March 1st
         System.out.println("✅ Graph data created - using UserAppSold with entity_id = 4");
         System.out.println("========================================");
 
@@ -3018,49 +3026,41 @@ public class ApplicationAnalyticsService {
     private GraphDTO getGraphData(
             Function<Integer, Optional<GraphSoldSummaryDTO>> dataFetcher,
             Supplier<List<Integer>> yearFetcher) {
+        return getGraphData(dataFetcher, yearFetcher, false);
+    }
+
+    // --- Private Graph Data Helper with future year filtering ---
+    private GraphDTO getGraphData(
+            Function<Integer, Optional<GraphSoldSummaryDTO>> dataFetcher,
+            Supplier<List<Integer>> yearFetcher,
+            boolean filterFutureYears) {
         GraphDTO graphData = new GraphDTO();
         List<YearlyGraphPointDTO> yearlyDataList = new ArrayList<>();
         try {
-            List<Integer> existingYearIds = yearFetcher.get();
-
-            // Get current year (latest year ID from the data)
-            int currentYearId;
+            // Determine current academic year based on March 1st logic
+            java.time.LocalDate today = java.time.LocalDate.now();
+            int currentCalendarYear = today.getYear();
+            int currentMonth = today.getMonthValue();
+            
+            // Calculate current academic year value
+            // Before March 1st: current academic year = (currentCalendarYear - 1) - currentCalendarYear
+            // On/After March 1st: current academic year = currentCalendarYear - (currentCalendarYear + 1)
+            int currentAcademicYearValue = (currentMonth >= 3) ? currentCalendarYear : (currentCalendarYear - 1);
+            
+            // Find the current academic year entity
+            Optional<AcademicYear> currentYearEntityOpt = academicYearRepository
+                    .findByYearAndIsActive(currentAcademicYearValue, 1);
+            
             List<Integer> yearIds = new ArrayList<>();
-
-            if (!existingYearIds.isEmpty()) {
-                existingYearIds.sort(Integer::compare);
-                currentYearId = existingYearIds.get(existingYearIds.size() - 1);
-                // Create list of 4 years: current + 3 previous years (based on acdcYearId)
-                for (int i = 0; i < 4; i++) {
-                    yearIds.add(currentYearId - i);
-                }
-            } else {
-                // If no data, use academic year info to get current year and last 3 previous
-                // years
-                AcademicYearInfoDTO yearInfo = getAcademicYearInfo();
-                if (yearInfo.getCurrentYear() == null || yearInfo.getCurrentYear().getAcdcYearId() == null) {
-                    graphData.setTitle("Application Sales Percentage (No Data)");
-                    graphData.setYearlyData(yearlyDataList);
-                    return graphData;
-                }
-
-                // Get current year entity to find its year field value
-                AcademicYear currentYearEntity = academicYearRepository
-                        .findById(yearInfo.getCurrentYear().getAcdcYearId()).orElse(null);
-                if (currentYearEntity == null) {
-                    graphData.setTitle("Application Sales Percentage (No Data)");
-                    graphData.setYearlyData(yearlyDataList);
-                    return graphData;
-                }
-
+            
+            if (currentYearEntityOpt.isPresent()) {
+                AcademicYear currentYearEntity = currentYearEntityOpt.get();
                 int currentYearValue = currentYearEntity.getYear();
-                currentYearId = currentYearEntity.getAcdcYearId();
-
-                // Get current year and 3 previous years based on year field (not acdcYearId)
-                // This ensures we get the correct academic years even if acdcYearId is not
-                // sequential
+                int currentYearId = currentYearEntity.getAcdcYearId();
+                
+                // Always show 4 years: current + 3 past years
                 yearIds.add(currentYearId); // Current year
-
+                
                 // Get 3 previous years
                 for (int i = 1; i <= 3; i++) {
                     int previousYearValue = currentYearValue - i;
@@ -3070,13 +3070,76 @@ public class ApplicationAnalyticsService {
                         yearIds.add(previousYearEntity.get().getAcdcYearId());
                     }
                 }
-
-                System.out.println("No data found - using academic year info: Current year=" + currentYearValue +
+                
+                System.out.println("Using academic year logic: Current year=" + currentYearValue + "-" + (currentYearValue + 1) + 
                         " (acdcYearId=" + currentYearId + "), Year IDs: " + yearIds);
-
-                // Sort yearIds in descending order (newest first) for consistent display
-                yearIds.sort(Comparator.reverseOrder());
+            } else {
+                // Fallback: Use data from yearFetcher if academic year not found
+                List<Integer> existingYearIds = yearFetcher.get();
+                if (!existingYearIds.isEmpty()) {
+                    existingYearIds.sort(Integer::compare);
+                    int currentYearId = existingYearIds.get(existingYearIds.size() - 1);
+                    // Create list of 4 years: current + 3 previous years (based on acdcYearId)
+                    for (int i = 0; i < 4; i++) {
+                        yearIds.add(currentYearId - i);
+                    }
+                    System.out.println("Fallback: Using data from yearFetcher, Year IDs: " + yearIds);
+                } else {
+                    // No data available
+                    graphData.setTitle("Application Sales Percentage (No Data)");
+                    graphData.setYearlyData(yearlyDataList);
+                    return graphData;
+                }
             }
+            
+            // Filter out future years before March 1st if flag is set
+            if (filterFutureYears && currentMonth < 3) {
+                // Before March 1st: Filter out years with year field > (currentCalendarYear - 1)
+                int maxAllowedYear = currentCalendarYear - 1;
+                yearIds = yearIds.stream()
+                        .filter(yearId -> {
+                            Optional<AcademicYear> yearOpt = academicYearRepository.findById(yearId);
+                            if (yearOpt.isPresent()) {
+                                int yearValue = yearOpt.get().getYear();
+                                boolean keep = yearValue <= maxAllowedYear;
+                                if (!keep) {
+                                    System.out.println("Filtering out future year: " + yearValue + "-" + (yearValue + 1) + 
+                                            " (acdcYearId: " + yearId + ") - exceeds max allowed year " + maxAllowedYear);
+                                }
+                                return keep;
+                            }
+                            return true; // Keep if year not found
+                        })
+                        .collect(Collectors.toList());
+                
+                // If after filtering we have fewer than 4 years, add more past years to make it 4
+                if (yearIds.size() < 4) {
+                    // Find the oldest year in the list
+                    int oldestYearValue = yearIds.stream()
+                            .map(yearId -> academicYearRepository.findById(yearId))
+                            .filter(Optional::isPresent)
+                            .map(opt -> opt.get().getYear())
+                            .min(Integer::compare)
+                            .orElse(currentAcademicYearValue);
+                    
+                    // Add more past years until we have 4 years
+                    int yearsToAdd = 4 - yearIds.size();
+                    for (int i = 1; i <= yearsToAdd; i++) {
+                        int previousYearValue = oldestYearValue - i;
+                        Optional<AcademicYear> previousYearEntity = academicYearRepository
+                                .findByYearAndIsActive(previousYearValue, 1);
+                        if (previousYearEntity.isPresent()) {
+                            yearIds.add(previousYearEntity.get().getAcdcYearId());
+                        }
+                    }
+                }
+                
+                System.out.println("Filtered future years (before March 1st, maxAllowedYear=" + maxAllowedYear + 
+                        "): Final yearIds = " + yearIds);
+            }
+            
+            // Sort yearIds in descending order (newest first) for consistent display
+            yearIds.sort(Comparator.reverseOrder());
 
             // Get AcademicYear entities for all years
             List<AcademicYear> academicYears = academicYearRepository.findByAcdcYearIdIn(yearIds)
@@ -3144,9 +3207,9 @@ public class ApplicationAnalyticsService {
             int currentMonth = today.getMonthValue();
             
             // Calculate the academic year value for metric cards
-            // Before March 1st: Use current year (e.g., 2026 → shows 26-27, acdcYearId 27)
-            // On/After March 1st: Use current year + 1 (e.g., 2027 → shows 27-28, acdcYearId 28)
-            int cardsAcademicYearValue = (currentMonth >= 3) ? (currentCalendarYear + 1) : currentCalendarYear;
+            // Before March 1st: Use currentCalendarYear - 1 (e.g., Jan 2026 → year = 2025 → shows 2025-26)
+            // On/After March 1st: Use currentCalendarYear (e.g., March 2026 → year = 2026 → shows 2026-27)
+            int cardsAcademicYearValue = (currentMonth >= 3) ? currentCalendarYear : (currentCalendarYear - 1);
             
             System.out.println("========================================");
             System.out.println("METRIC CARDS ACADEMIC YEAR CALCULATION");
@@ -3154,8 +3217,8 @@ public class ApplicationAnalyticsService {
             System.out.println("Current Month: " + currentMonth);
             System.out.println("Cards Academic Year Value (year field to search): " + cardsAcademicYearValue);
             System.out.println("Expected: " + (currentMonth >= 3 ? 
-                    "After March 1st → year=2027 → acdcYearId=28 (2027-28)" : 
-                    "Before March 1st → year=2026 → acdcYearId=27 (2026-27)"));
+                    "After March 1st → year=" + currentCalendarYear + " → shows " + currentCalendarYear + "-" + (currentCalendarYear + 1) : 
+                    "Before March 1st → year=" + (currentCalendarYear - 1) + " → shows " + (currentCalendarYear - 1) + "-" + currentCalendarYear));
             System.out.println("========================================");
             
             // Find the academic year entity for metric cards
@@ -3309,10 +3372,10 @@ public class ApplicationAnalyticsService {
         // (like graph issued percentage is 100 when data exists)
         if (previous == 0)
             return (current > 0) ? 100.0 : 0.0;
-        // If current year has no data (0): show 0% (like graph when no data, not -100%)
+        // If current year has no data (0) and previous had data: show -100% (actual negative value)
         if (current == 0)
-            return 0.0;
-        // If both have data: calculate normal percentage change
+            return -100.0;
+        // If both have data: calculate normal percentage change (can be negative)
         double change = ((current - previous) / previous) * 100;
         return Math.round(change);
     }
@@ -3880,7 +3943,15 @@ public class ApplicationAnalyticsService {
             long issuedCount = data[0]; // totalAppCount from table
             long soldCount = data[1]; // sold from table
             AcademicYear year = yearMap.get(yearId);
-            String yearLabel = year != null ? year.getAcademicYear() : "Year " + yearId;
+            // Format year label as "2026-27" (4-digit year - 2-digit next year)
+            String yearLabel;
+            if (year != null) {
+                int yearValue = year.getYear();
+                int nextYear = yearValue + 1;
+                yearLabel = String.format("%d-%02d", yearValue, nextYear % 100);
+            } else {
+                yearLabel = "Year " + yearId;
+            }
             
             // Calculate percentages by comparing with previous year
             int issuedPercent;
