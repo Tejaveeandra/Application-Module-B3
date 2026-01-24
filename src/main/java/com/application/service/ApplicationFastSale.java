@@ -891,8 +891,16 @@ public class ApplicationFastSale {
 					concessionReasonRepository.findById(concDto.getReasonId())
 							.ifPresent(concession::setConcessionReason);
 				concession.setConc_referred_by(concDto.getConcReferedBy());
-				if (concDto.getGivenById() != null)
-					concession.setConc_issued_by(concDto.getGivenById());
+				
+				// For awards, use authorizedById for conc_issued_by
+				boolean isAward = concession.getConcessionType() != null 
+					&& concession.getConcessionType().getConc_type() != null
+					&& concession.getConcessionType().getConc_type().toLowerCase().contains("award");
+				
+				if (isAward && concDto.getAuthorizedById() != null) {
+					// For awards: use authorizedById for issued_by
+					concession.setConc_issued_by(concDto.getAuthorizedById());
+				}
 				if (concDto.getAuthorizedById() != null)
 					concession.setConc_authorised_by(concDto.getAuthorizedById());
 				concessionRepository.save(concession);
@@ -1706,7 +1714,16 @@ public class ApplicationFastSale {
 					concessionReasonRepository.findById(c.getReasonId()).ifPresent(conc::setConcessionReason);
 
 				conc.setConc_referred_by(c.getConcReferedBy());
-				conc.setConc_issued_by(c.getGivenById());
+				
+				// For awards, use authorizedById for conc_issued_by
+				boolean isAward = conc.getConcessionType() != null 
+					&& conc.getConcessionType().getConc_type() != null
+					&& conc.getConcessionType().getConc_type().toLowerCase().contains("award");
+				
+				if (isAward && c.getAuthorizedById() != null) {
+					// For awards: use authorizedById for issued_by
+					conc.setConc_issued_by(c.getAuthorizedById());
+				}
 				conc.setConc_authorised_by(c.getAuthorizedById());
 
 				concessionRepository.save(conc);
@@ -1885,7 +1902,16 @@ public class ApplicationFastSale {
 				}
 
 				concession.setConc_referred_by(concDto.getConcReferedBy());
-				concession.setConc_issued_by(concDto.getGivenById());
+				
+				// For awards, use authorizedById for conc_issued_by
+				boolean isAward = concession.getConcessionType() != null 
+					&& concession.getConcessionType().getConc_type() != null
+					&& concession.getConcessionType().getConc_type().toLowerCase().contains("award");
+				
+				if (isAward && concDto.getAuthorizedById() != null) {
+					// For awards: use authorizedById for issued_by
+					concession.setConc_issued_by(concDto.getAuthorizedById());
+				}
 				concession.setConc_authorised_by(concDto.getAuthorizedById());
 
 				concessionRepository.save(concession);
