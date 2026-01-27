@@ -1,13 +1,15 @@
 package com.application.dto;
  
 import java.util.Date;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
-
+ 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class StudentAdmissionDTO {
  
     private String firstName;
@@ -20,11 +22,12 @@ public class StudentAdmissionDTO {
     private Long proReceiptNo;
     private String admissionReferedBy;
     private Date appSaleDate;
-    
+   
  
     // --- Parent Information (Step 1) ---
     private String fatherName;
     private Long fatherMobileNo;
+    private String fatherEmail;
  
     // --- Orientation Information (Step 1) ---
     private Integer academicYearId;
@@ -44,5 +47,6 @@ public class StudentAdmissionDTO {
     /**
      * This field will contain all the data from the Step 2 Payment Popup.
      */
-    private PaymentDetailsDTO paymentDetails; 
+    private PaymentDetailsDTO paymentDetails;
 }
+ 
