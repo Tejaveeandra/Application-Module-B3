@@ -121,7 +121,11 @@ public class UserAppSoldService {
 
 		// 1. Determine User Role and Fetch Filter IDs
 		if (empId != null && empId != 0) {
-			SCEmployeeEntity employee = scEmployeeRepository.findById(empId).orElse(null);
+			// Use findByEmpId which returns List (handles multiple results in view)
+			SCEmployeeEntity employee = scEmployeeRepository.findByEmpId(empId)
+					.stream()
+					.findFirst()
+					.orElse(null);
 
 			if (employee != null) {
 				userRole = employee.getEmpStudApplicationRole();
@@ -156,23 +160,27 @@ public class UserAppSoldService {
 						campusIds = new ArrayList<>();
 					}
 				}
-				// LOGIC: IF DGM -> Filter Campuses by DGM entity
+				// LOGIC: IF DGM -> Filter Campuses by DGM entity (can have multiple campuses)
 				else if ("DGM".equalsIgnoreCase(userRole) || "DIVISIONAL_OFFICER".equalsIgnoreCase(userRole)) {
-					// Fetch DGM record to get campus (same as getDgmPerformance method)
-					java.util.Optional<Dgm> dgmOpt = dgmRepository.findActiveByEmpId(empId);
-					if (dgmOpt.isPresent()) {
-						Dgm dgm = dgmOpt.get();
-						if (dgm.getCampus() != null) {
-							Integer campusId = dgm.getCampus().getCampusId();
-							// DGM has 1 campus, but using list for consistency
-							campusIds = java.util.List.of(campusId);
-							System.out.println("DGM Logged In (empId: " + empId + ", campusId: " + campusId + ")");
+					// Fetch all DGM records for this employee (can have multiple campuses)
+					List<Dgm> dgmList = dgmRepository.findByEmpId(empId);
+					if (dgmList != null && !dgmList.isEmpty()) {
+						// Filter for active DGMs and collect all campus IDs
+						campusIds = dgmList.stream()
+								.filter(dgm -> dgm.getIsActive() == 1) // isActive is int, not Integer
+								.filter(dgm -> dgm.getCampus() != null)
+								.map(dgm -> dgm.getCampus().getCampusId())
+								.distinct() // Remove duplicates
+								.collect(java.util.stream.Collectors.toList());
+
+						if (!campusIds.isEmpty()) {
+							System.out.println("DGM Logged In (empId: " + empId + ", campusIds: " + campusIds + ")");
 						} else {
-							System.out.println("⚠️ DGM " + empId + " not mapped to campus, showing no data");
+							System.out.println("⚠️ DGM " + empId + " has no active campuses, showing no data");
 							campusIds = new ArrayList<>();
 						}
 					} else {
-						System.out.println("⚠️ DGM " + empId + " not found or inactive, showing no data");
+						System.out.println("⚠️ DGM " + empId + " not found, showing no data");
 						campusIds = new ArrayList<>();
 					}
 				}
