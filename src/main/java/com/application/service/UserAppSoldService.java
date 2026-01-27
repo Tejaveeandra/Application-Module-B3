@@ -127,31 +127,92 @@ public class UserAppSoldService {
 				userRole = employee.getEmpStudApplicationRole();
 				System.out.println("User Role: " + userRole);
 
-				// LOGIC: IF ZONE -> Filter DGMs and Campuses
+				// LOGIC: IF ZONAL ACCOUNTANT -> Filter DGMs and Campuses by Zone
 				if ("ZONAL ACCOUNTANT".equalsIgnoreCase(userRole) || "ZONE".equalsIgnoreCase(userRole)
 						|| "ZONAL_OFFICER".equalsIgnoreCase(userRole)) {
-					// Fetch the Zone ID from the employee view
-					int zoneId = employee.getZoneId();
-					// Get all DGMs under this Zone
-					dgmIds = userAppSoldRepository.findDgmIdsByZoneId(zoneId);
-					System.out.println("Zone Logged In (" + zoneId + "). Fetched DGM IDs: " + dgmIds);
-					// Get all Campuses under this Zone (to filter campus performance)
-					List<com.application.entity.Campus> campuses = campusRepository.findByZoneZoneId(zoneId);
-					campusIds = campuses.stream()
-							.map(com.application.entity.Campus::getCampusId)
-							.collect(java.util.stream.Collectors.toList());
-					System.out.println("Zone Logged In (" + zoneId + "). Fetched Campus IDs: " + campusIds);
+					// Fetch the Zone ID from ZonalAccountant entity (same as
+					// getZoneAccountantPerformance)
+					List<ZonalAccountant> zonalRecords = zonalAccountantRepository.findActiveByEmployee(empId);
+					if (zonalRecords != null && !zonalRecords.isEmpty() && zonalRecords.get(0).getZone() != null) {
+						Integer zoneId = zonalRecords.get(0).getZone().getZoneId();
+						System.out.println("ZONAL ACCOUNTANT Logged In (empId: " + empId + ", zoneId: " + zoneId + ")");
+
+						// Get all DGMs under this Zone
+						List<Dgm> dgmList = dgmRepository.findByZoneZoneIdAndIsActive(zoneId, 1);
+						dgmIds = dgmList.stream()
+								.map(d -> d.getEmployee().getEmp_id())
+								.collect(java.util.stream.Collectors.toList());
+						System.out.println("Zone (" + zoneId + "). Fetched DGM IDs: " + dgmIds);
+
+						// Get all Campuses under this Zone (to filter campus performance)
+						List<com.application.entity.Campus> campuses = campusRepository.findByZoneZoneId(zoneId);
+						campusIds = campuses.stream()
+								.map(com.application.entity.Campus::getCampusId)
+								.collect(java.util.stream.Collectors.toList());
+						System.out.println("Zone (" + zoneId + "). Fetched Campus IDs: " + campusIds);
+					} else {
+						System.out.println("⚠️ ZONAL ACCOUNTANT " + empId + " not mapped to zone, showing no data");
+						dgmIds = new ArrayList<>();
+						campusIds = new ArrayList<>();
+					}
 				}
-				// LOGIC: IF DGM -> Filter Campuses
+				// LOGIC: IF DGM -> Filter Campuses by DGM entity
 				else if ("DGM".equalsIgnoreCase(userRole) || "DIVISIONAL_OFFICER".equalsIgnoreCase(userRole)) {
-					// Get all Campuses under this DGM
-					campusIds = userAppSoldRepository.findCampusIdsByDgmId(empId);
-					System.out.println("DGM Logged In (" + empId + "). Fetched Campus IDs: " + campusIds);
+					// Fetch DGM record to get campus (same as getDgmPerformance method)
+					java.util.Optional<Dgm> dgmOpt = dgmRepository.findActiveByEmpId(empId);
+					if (dgmOpt.isPresent()) {
+						Dgm dgm = dgmOpt.get();
+						if (dgm.getCampus() != null) {
+							Integer campusId = dgm.getCampus().getCampusId();
+							// DGM has 1 campus, but using list for consistency
+							campusIds = java.util.List.of(campusId);
+							System.out.println("DGM Logged In (empId: " + empId + ", campusId: " + campusId + ")");
+						} else {
+							System.out.println("⚠️ DGM " + empId + " not mapped to campus, showing no data");
+							campusIds = new ArrayList<>();
+						}
+					} else {
+						System.out.println("⚠️ DGM " + empId + " not found or inactive, showing no data");
+						campusIds = new ArrayList<>();
+					}
 				}
-				// LOGIC: IF ADMIN -> Show All (No Filtering)
-				else if ("ADMIN".equalsIgnoreCase(userRole)) {
-					System.out.println("ADMIN Logged In (" + empId + "). Fetching ALL data (No Filter).");
-					// dgmIds and campusIds remain null, so all will be fetched.
+				// LOGIC: IF ADMIN -> Filter by Category (COLLEGE ADMIN or SCHOOL ADMIN)
+				else if ("ADMIN".equalsIgnoreCase(userRole) ||
+						"COLLEGE ADMIN".equalsIgnoreCase(userRole) ||
+						"SCHOOL ADMIN".equalsIgnoreCase(userRole)) {
+					// Determine category based on role or employee category field
+					String adminCategory = null;
+					if ("COLLEGE ADMIN".equalsIgnoreCase(userRole)) {
+						adminCategory = "college";
+						System.out.println("COLLEGE ADMIN Logged In (" + empId + "). Filtering by COLLEGE category.");
+					} else if ("SCHOOL ADMIN".equalsIgnoreCase(userRole)) {
+						adminCategory = "school";
+						System.out.println("SCHOOL ADMIN Logged In (" + empId + "). Filtering by SCHOOL category.");
+					} else if ("ADMIN".equalsIgnoreCase(userRole)) {
+						// For generic ADMIN, check employee category field as fallback
+						String empCategory = employee.getCategory();
+						if (empCategory != null && !empCategory.trim().isEmpty()) {
+							String categoryLower = empCategory.trim().toLowerCase();
+							if (categoryLower.contains("college")) {
+								adminCategory = "college";
+								System.out.println("ADMIN Logged In (" + empId + "). Using employee category: COLLEGE");
+							} else if (categoryLower.contains("school")) {
+								adminCategory = "school";
+								System.out.println("ADMIN Logged In (" + empId + "). Using employee category: SCHOOL");
+							} else {
+								System.out.println(
+										"ADMIN Logged In (" + empId + "). No category filter - showing ALL data.");
+							}
+						} else {
+							System.out
+									.println("ADMIN Logged In (" + empId + "). No category found - showing ALL data.");
+						}
+					}
+					// Override campusCategory parameter if admin has specific category
+					if (adminCategory != null) {
+						campusCategory = adminCategory;
+						System.out.println("Setting campusCategory to: " + campusCategory);
+					}
 				}
 			}
 		}
@@ -174,7 +235,9 @@ public class UserAppSoldService {
 					showZone = false; // DGM/Divisional Officer: Campuses only
 					showDgm = false;
 					showCampus = true;
-				} else if ("ADMIN".equalsIgnoreCase(userRole)) {
+				} else if ("ADMIN".equalsIgnoreCase(userRole) ||
+						"COLLEGE ADMIN".equalsIgnoreCase(userRole) ||
+						"SCHOOL ADMIN".equalsIgnoreCase(userRole)) {
 					showZone = true;
 					showDgm = true;
 					showCampus = true;

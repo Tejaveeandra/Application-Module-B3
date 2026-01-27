@@ -2027,7 +2027,6 @@
 //         }
 //     }
 // }
-
 package com.application.service;
 
 import java.util.ArrayList;
@@ -2536,7 +2535,8 @@ public class ApplicationAnalyticsService {
                         (yearId) -> {
                             // Get AppStatusTrack metrics with app_issued_type_id = 3 (DGM level: for
                             // appIssued, appAvailable, filtered by campusIds and zoneId)
-                            // NOTE: totalApp from AppStatusTrack (Type 3) captures Zone-to-DGM and Admin-to-DGM flows
+                            // NOTE: totalApp from AppStatusTrack (Type 3) captures Zone-to-DGM and
+                            // Admin-to-DGM flows
                             MetricsAggregateDTO statusMetrics = appStatusTrackRepository
                                     .getMetricsByCampusIdsAndYearForDgm(campusIds, zoneId, yearId)
                                     .orElse(new MetricsAggregateDTO());
@@ -2581,7 +2581,8 @@ public class ApplicationAnalyticsService {
                             System.out.println("----------------------------------------");
 
                             // For DGM Flow (Zone-to-DGM & Admin-to-DGM): Use AppStatusTrack (Type 3)
-                            // For Direct Campus Flow (Admin-to-Campus & Zone-to-Campus): Use Distribution table
+                            // For Direct Campus Flow (Admin-to-Campus & Zone-to-Campus): Use Distribution
+                            // table
                             long finalTotalApp = statusMetrics.totalApp() + adminToCampusDist + zoneToCampusDist;
 
                             System.out.println("✅ FINAL DGM CALCULATION:");
@@ -3041,26 +3042,28 @@ public class ApplicationAnalyticsService {
             java.time.LocalDate today = java.time.LocalDate.now();
             int currentCalendarYear = today.getYear();
             int currentMonth = today.getMonthValue();
-            
+
             // Calculate current academic year value
-            // Before March 1st: current academic year = (currentCalendarYear - 1) - currentCalendarYear
-            // On/After March 1st: current academic year = currentCalendarYear - (currentCalendarYear + 1)
+            // Before March 1st: current academic year = (currentCalendarYear - 1) -
+            // currentCalendarYear
+            // On/After March 1st: current academic year = currentCalendarYear -
+            // (currentCalendarYear + 1)
             int currentAcademicYearValue = (currentMonth >= 3) ? currentCalendarYear : (currentCalendarYear - 1);
-            
+
             // Find the current academic year entity
             Optional<AcademicYear> currentYearEntityOpt = academicYearRepository
                     .findByYearAndIsActive(currentAcademicYearValue, 1);
-            
+
             List<Integer> yearIds = new ArrayList<>();
-            
+
             if (currentYearEntityOpt.isPresent()) {
                 AcademicYear currentYearEntity = currentYearEntityOpt.get();
                 int currentYearValue = currentYearEntity.getYear();
                 int currentYearId = currentYearEntity.getAcdcYearId();
-                
+
                 // Always show 4 years: current + 3 past years
                 yearIds.add(currentYearId); // Current year
-                
+
                 // Get 3 previous years
                 for (int i = 1; i <= 3; i++) {
                     int previousYearValue = currentYearValue - i;
@@ -3070,9 +3073,10 @@ public class ApplicationAnalyticsService {
                         yearIds.add(previousYearEntity.get().getAcdcYearId());
                     }
                 }
-                
-                System.out.println("Using academic year logic: Current year=" + currentYearValue + "-" + (currentYearValue + 1) + 
-                        " (acdcYearId=" + currentYearId + "), Year IDs: " + yearIds);
+
+                System.out.println(
+                        "Using academic year logic: Current year=" + currentYearValue + "-" + (currentYearValue + 1) +
+                                " (acdcYearId=" + currentYearId + "), Year IDs: " + yearIds);
             } else {
                 // Fallback: Use data from yearFetcher if academic year not found
                 List<Integer> existingYearIds = yearFetcher.get();
@@ -3091,10 +3095,11 @@ public class ApplicationAnalyticsService {
                     return graphData;
                 }
             }
-            
+
             // Filter out future years before March 1st if flag is set
             if (filterFutureYears && currentMonth < 3) {
-                // Before March 1st: Filter out years with year field > (currentCalendarYear - 1)
+                // Before March 1st: Filter out years with year field > (currentCalendarYear -
+                // 1)
                 int maxAllowedYear = currentCalendarYear - 1;
                 yearIds = yearIds.stream()
                         .filter(yearId -> {
@@ -3103,16 +3108,19 @@ public class ApplicationAnalyticsService {
                                 int yearValue = yearOpt.get().getYear();
                                 boolean keep = yearValue <= maxAllowedYear;
                                 if (!keep) {
-                                    System.out.println("Filtering out future year: " + yearValue + "-" + (yearValue + 1) + 
-                                            " (acdcYearId: " + yearId + ") - exceeds max allowed year " + maxAllowedYear);
+                                    System.out
+                                            .println("Filtering out future year: " + yearValue + "-" + (yearValue + 1) +
+                                                    " (acdcYearId: " + yearId + ") - exceeds max allowed year "
+                                                    + maxAllowedYear);
                                 }
                                 return keep;
                             }
                             return true; // Keep if year not found
                         })
                         .collect(Collectors.toList());
-                
-                // If after filtering we have fewer than 4 years, add more past years to make it 4
+
+                // If after filtering we have fewer than 4 years, add more past years to make it
+                // 4
                 if (yearIds.size() < 4) {
                     // Find the oldest year in the list
                     int oldestYearValue = yearIds.stream()
@@ -3121,7 +3129,7 @@ public class ApplicationAnalyticsService {
                             .map(opt -> opt.get().getYear())
                             .min(Integer::compare)
                             .orElse(currentAcademicYearValue);
-                    
+
                     // Add more past years until we have 4 years
                     int yearsToAdd = 4 - yearIds.size();
                     for (int i = 1; i <= yearsToAdd; i++) {
@@ -3133,11 +3141,11 @@ public class ApplicationAnalyticsService {
                         }
                     }
                 }
-                
-                System.out.println("Filtered future years (before March 1st, maxAllowedYear=" + maxAllowedYear + 
+
+                System.out.println("Filtered future years (before March 1st, maxAllowedYear=" + maxAllowedYear +
                         "): Final yearIds = " + yearIds);
             }
-            
+
             // Sort yearIds in descending order (newest first) for consistent display
             yearIds.sort(Comparator.reverseOrder());
 
@@ -3197,43 +3205,51 @@ public class ApplicationAnalyticsService {
         MetricsDataDTO dto = new MetricsDataDTO();
         try {
             // ============================================================
-            // FOR METRIC CARDS: Show current year before March 1st, future year after March 1st
+            // FOR METRIC CARDS: Show current year before March 1st, future year after March
+            // 1st
             // ============================================================
             // Academic year for metric cards:
-            // - Before March 1st: Show current academic year (e.g., Jan 2026 → shows 2026-27, year = 2026)
-            // - On/After March 1st: Show future academic year (e.g., March 2026 → shows 2027-28, year = 2027)
+            // - Before March 1st: Show current academic year (e.g., Jan 2026 → shows
+            // 2026-27, year = 2026)
+            // - On/After March 1st: Show future academic year (e.g., March 2026 → shows
+            // 2027-28, year = 2027)
             java.time.LocalDate today = java.time.LocalDate.now();
             int currentCalendarYear = today.getYear();
             int currentMonth = today.getMonthValue();
-            
+
             // Calculate the academic year value for metric cards
-            // Before March 1st: Use currentCalendarYear (e.g., Jan 2026 → year = 2026 → shows 2026-27)
-            // On/After March 1st: Use currentCalendarYear + 1 (e.g., March 2026 → year = 2027 → shows 2027-28) - FUTURE YEAR
+            // Before March 1st: Use currentCalendarYear (e.g., Jan 2026 → year = 2026 →
+            // shows 2026-27)
+            // On/After March 1st: Use currentCalendarYear + 1 (e.g., March 2026 → year =
+            // 2027 → shows 2027-28) - FUTURE YEAR
             int cardsAcademicYearValue = (currentMonth >= 3) ? (currentCalendarYear + 1) : currentCalendarYear;
-            
+
             System.out.println("========================================");
             System.out.println("METRIC CARDS ACADEMIC YEAR CALCULATION");
             System.out.println("Current Calendar Year: " + currentCalendarYear);
             System.out.println("Current Month: " + currentMonth);
             System.out.println("Cards Academic Year Value (year field to search): " + cardsAcademicYearValue);
-            System.out.println("Expected: " + (currentMonth >= 3 ? 
-                    "After March 1st → year=" + (currentCalendarYear + 1) + " → shows " + (currentCalendarYear + 1) + "-" + (currentCalendarYear + 2) + " (FUTURE YEAR)" : 
-                    "Before March 1st → year=" + currentCalendarYear + " → shows " + currentCalendarYear + "-" + (currentCalendarYear + 1)));
+            System.out.println("Expected: " + (currentMonth >= 3
+                    ? "After March 1st → year=" + (currentCalendarYear + 1) + " → shows " + (currentCalendarYear + 1)
+                            + "-" + (currentCalendarYear + 2) + " (FUTURE YEAR)"
+                    : "Before March 1st → year=" + currentCalendarYear + " → shows " + currentCalendarYear + "-"
+                            + (currentCalendarYear + 1)));
             System.out.println("========================================");
-            
+
             // Find the academic year entity for metric cards
             java.util.Optional<AcademicYear> cardsYearEntityOpt = academicYearRepository
                     .findByYearAndIsActive(cardsAcademicYearValue, 1);
-            
+
             Integer currentYearId = null;
             if (cardsYearEntityOpt.isPresent()) {
                 currentYearId = cardsYearEntityOpt.get().getAcdcYearId();
-                System.out.println("✅ METRIC CARDS: Found academic year - acdcYearId: " + currentYearId + 
-                        ", year: " + cardsYearEntityOpt.get().getYear() + 
+                System.out.println("✅ METRIC CARDS: Found academic year - acdcYearId: " + currentYearId +
+                        ", year: " + cardsYearEntityOpt.get().getYear() +
                         ", academicYear: " + cardsYearEntityOpt.get().getAcademicYear());
             } else {
                 // If academic year not found, try to find the latest active year as fallback
-                System.out.println("METRIC CARDS: Academic year with year=" + cardsAcademicYearValue + " not found, trying fallback...");
+                System.out.println("METRIC CARDS: Academic year with year=" + cardsAcademicYearValue
+                        + " not found, trying fallback...");
                 List<Integer> yearIds = yearFetcher.get();
                 if (yearIds != null && !yearIds.isEmpty()) {
                     // Use the latest year from data as fallback
@@ -3247,7 +3263,7 @@ public class ApplicationAnalyticsService {
                     return dto;
                 }
             }
-            
+
             // Always use previous year (currentYearId - 1) for comparison
             int previousYearId = currentYearId - 1;
             System.out.println("📅 Current Year ID: " + currentYearId);
@@ -3256,7 +3272,8 @@ public class ApplicationAnalyticsService {
             AcademicYear cy = academicYearRepository.findById(currentYearId).orElse(null);
             AcademicYear py = academicYearRepository.findById(previousYearId).orElse(null);
 
-            // If previous year doesn't exist by ID, try to find it by year (currentYear - 1)
+            // If previous year doesn't exist by ID, try to find it by year (currentYear -
+            // 1)
             if (py == null && cy != null) {
                 int previousYearNumber = cy.getYear() - 1;
                 py = academicYearRepository.findByYear(previousYearNumber).orElse(null);
@@ -3372,7 +3389,8 @@ public class ApplicationAnalyticsService {
         // (like graph issued percentage is 100 when data exists)
         if (previous == 0)
             return (current > 0) ? 100.0 : 0.0;
-        // If current year has no data (0) and previous had data: show -100% (actual negative value)
+        // If current year has no data (0) and previous had data: show -100% (actual
+        // negative value)
         if (current == 0)
             return -100.0;
         // If both have data: calculate normal percentage change (can be negative)
@@ -3380,10 +3398,12 @@ public class ApplicationAnalyticsService {
         return Math.round(change);
     }
 
-    // Helper method for percentage calculation with clamping (same as AdminDashboardService)
+    // Helper method for percentage calculation with clamping (same as
+    // AdminDashboardService)
     private int clampChange(int prev, int curr) {
         if (prev == 0) {
-            // If previous was 0, any increase is considered 100% growth, but if current is also 0, return 0
+            // If previous was 0, any increase is considered 100% growth, but if current is
+            // also 0, return 0
             return curr > 0 ? 100 : 0;
         }
         double raw = ((double) (curr - prev) / prev) * 100;
@@ -3391,12 +3411,15 @@ public class ApplicationAnalyticsService {
     }
 
     private int clamp(double value) {
-        if (value > 100) return 100;
-        if (value < -100) return -100;
+        if (value > 100)
+            return 100;
+        if (value < -100)
+            return -100;
         return (int) Math.round(value);
     }
 
-    // Helper method for percentage calculation without clamping (for sold percentage in graph)
+    // Helper method for percentage calculation without clamping (for sold
+    // percentage in graph)
     private int unclampedChange(int prev, int curr) {
         if (prev == 0) {
             // If previous was 0, any increase shows a high percentage to indicate growth
@@ -3404,7 +3427,8 @@ public class ApplicationAnalyticsService {
             return curr > 0 ? 1000 : 0; // Show 1000% to indicate significant growth from 0
         }
         double raw = ((double) (curr - prev) / prev) * 100;
-        // Don't clamp - show actual percentage even if it exceeds 100 or goes below -100
+        // Don't clamp - show actual percentage even if it exceeds 100 or goes below
+        // -100
         return (int) Math.round(raw);
     }
 
@@ -3933,12 +3957,14 @@ public class ApplicationAnalyticsService {
             }
         }
         // Build GraphBarDTO list for all 4 years (always return 4 years)
-        // Calculate percentages by comparing each year with its previous year (like metric cards)
+        // Calculate percentages by comparing each year with its previous year (like
+        // metric cards)
         List<GraphBarDTO> barList = new ArrayList<>();
         for (int i = 0; i < yearIds.size(); i++) {
             Integer yearId = yearIds.get(i);
-            Integer previousYearId = (i < yearIds.size() - 1) ? yearIds.get(i + 1) : null; // Previous year (next in list)
-            
+            Integer previousYearId = (i < yearIds.size() - 1) ? yearIds.get(i + 1) : null; // Previous year (next in
+                                                                                           // list)
+
             long[] data = yearDataMap.getOrDefault(yearId, new long[] { 0L, 0L });
             long issuedCount = data[0]; // totalAppCount from table
             long soldCount = data[1]; // sold from table
@@ -3952,17 +3978,17 @@ public class ApplicationAnalyticsService {
             } else {
                 yearLabel = "Year " + yearId;
             }
-            
+
             // Calculate percentages by comparing with previous year
             int issuedPercent;
             int soldPercent;
-            
+
             if (previousYearId != null) {
                 // Get previous year data for comparison
                 long[] prevData = yearDataMap.getOrDefault(previousYearId, new long[] { 0L, 0L });
                 long prevIssuedCount = prevData[0];
                 long prevSoldCount = prevData[1];
-                
+
                 // Calculate percentage change
                 // Issued: Use clampChange (clamped to -100 to 100)
                 issuedPercent = clampChange((int) prevIssuedCount, (int) issuedCount);
@@ -3979,7 +4005,7 @@ public class ApplicationAnalyticsService {
                     soldPercent = 0;
                 }
             }
-            
+
             // Log calculation details for multiple campuses
             if (campusIds != null && campusIds.size() > 1) {
                 System.out.println("Year: " + yearLabel + " | Issued: " + issuedCount + " | Sold: " + soldCount +
@@ -4001,7 +4027,7 @@ public class ApplicationAnalyticsService {
 
     /**
      * Get all campuses with optional category filter (school/college)
-     * 
+     *
      * @param category Optional category filter: "school" or "college"
      * @return List of GenericDropdownDTO containing campus ID and name
      */
@@ -4036,7 +4062,7 @@ public class ApplicationAnalyticsService {
 
     /**
      * Get all zones with optional category filter (school/college)
-     * 
+     *
      * @param category Optional category filter: "school" or "college"
      * @return List of GenericDropdownDTO containing zone ID and name
      */
@@ -4082,7 +4108,7 @@ public class ApplicationAnalyticsService {
 
     /**
      * Get all DGM employees with optional category filter (school/college)
-     * 
+     *
      * @param category Optional category filter: "school" or "college"
      * @return List of GenericDropdownDTO_Dgm containing employee ID, name, and
      *         associated campus IDs
@@ -4154,12 +4180,12 @@ public class ApplicationAnalyticsService {
     /**
      * Get Current, Next, and Previous Two Academic Years
      * Returns academic year ID and academic year string for each
-
-    * Current year transitions on March 1st:
+     * 
+     * Current year transitions on March 1st:
      * - Before March 1st: current academic year = (current calendar year - 1)
-     *   Example: Feb 28, 2026 → academic year 2025-26 (year = 2025)
+     * Example: Feb 28, 2026 → academic year 2025-26 (year = 2025)
      * - On/After March 1st: current academic year = current calendar year
-     *   Example: March 1, 2026 → academic year 2026-27 (year = 2026)
+     * Example: March 1, 2026 → academic year 2026-27 (year = 2026)
      * Then uses that academic year's year field to calculate next and previous
      * years
      * All queries filter by is_active = 1
@@ -4171,9 +4197,9 @@ public class ApplicationAnalyticsService {
         // Get current calendar year (e.g., 2026)
         // Academic year transitions on March 1st:
         // - Before March 1st: current academic year = (current calendar year - 1)
-        //   Example: Feb 28, 2026 → academic year 2025-26 (year = 2025)
+        // Example: Feb 28, 2026 → academic year 2025-26 (year = 2025)
         // - On/After March 1st: current academic year = current calendar year
-        //   Example: March 1, 2026 → academic year 2026-27 (year = 2026)
+        // Example: March 1, 2026 → academic year 2026-27 (year = 2026)
         java.time.LocalDate today = java.time.LocalDate.now();
         int currentCalendarYear = today.getYear();
         int currentMonth = today.getMonthValue();
@@ -4183,11 +4209,12 @@ public class ApplicationAnalyticsService {
         System.out.println("Current Calendar Year: " + currentCalendarYear);
         System.out.println("Current Month: " + currentMonth);
         System.out.println(
-                "Finding academic year where year field = " + currentAcademicYearValue + 
-                (currentMonth >= 3 ? " (on/after March 1st)" : " (before March 1st)"));
+                "Finding academic year where year field = " + currentAcademicYearValue +
+                        (currentMonth >= 3 ? " (on/after March 1st)" : " (before March 1st)"));
         System.out.println("========================================");
 
-        // Find academic year where year field matches the calculated current academic year
+        // Find academic year where year field matches the calculated current academic
+        // year
         // (filtered by is_active = 1)
         Optional<AcademicYear> currentYearEntityOpt = academicYearRepository
                 .findByYearAndIsActive(currentAcademicYearValue, 1);
@@ -4252,7 +4279,7 @@ public class ApplicationAnalyticsService {
 
     /**
      * Get distinct app_amount values from AdminApp table
-     * 
+     *
      * @return List of distinct app_amount values (sorted in ascending order)
      */
     public List<Double> getDistinctAppAmounts() {
