@@ -8,6 +8,8 @@ import org.springframework.stereotype.Repository;
 import com.application.entity.CmpsOrientationProgramView;
 
 @Repository
-public interface CmpsOrientationProgramViewRepository extends JpaRepository<CmpsOrientationProgramView, String>{
+public interface CmpsOrientationProgramViewRepository extends JpaRepository<CmpsOrientationProgramView, String> {
+
+    List<CmpsOrientationProgramView> findByOrientationId(int orientationId);
 
 }

@@ -108,6 +108,21 @@ public class StudentAdmissionController {
         return studentAdmissionService.getOrientationsByCampus(campusId);
     }
 
+    @GetMapping("/streams/{orientationId}")
+    public List<GenericDropdownDTO> getStreamsByOrientationId(@PathVariable int orientationId) {
+        return studentAdmissionService.getStreamsByOrientationId(orientationId);
+    }
+
+    @GetMapping("/programs/{orientationId}")
+    public List<GenericDropdownDTO> getProgramsByOrientationId(@PathVariable int orientationId) {
+        return studentAdmissionService.getProgramsByOrientationId(orientationId);
+    }
+
+    @GetMapping("/exam-programs/{orientationId}")
+    public List<GenericDropdownDTO> getExamProgramsByOrientationId(@PathVariable int orientationId) {
+        return studentAdmissionService.getExamProgramsByOrientationId(orientationId);
+    }
+
     @GetMapping("/districts/{stateId}") // used/c
     public List<GenericDropdownDTO> getDistrictsByState(@PathVariable int stateId) {
         return studentAdmissionService.getDistrictsByState(stateId);

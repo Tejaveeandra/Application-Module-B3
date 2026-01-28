@@ -33,6 +33,8 @@ public class StudentAcademicDetails {
 	private String last_name;
 	private LocalDateTime adms_date;
 	private int created_by;
+	private Integer updated_by;
+	private LocalDateTime updated_date;
 	private LocalDate doj;
 	// private Integer orientation_id;
 	// @Column(name = "orientation_batch_id")

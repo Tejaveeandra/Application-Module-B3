@@ -107,6 +107,11 @@ import com.application.repository.ZoneRepository;
 
 import jakarta.persistence.EntityNotFoundException;
 
+import com.application.repository.CmpsOrientationStreamViewRepository;
+import com.application.entity.CmpsOrientationStreamView;
+import com.application.repository.CmpsOrientationProgramViewRepository;
+import com.application.entity.CmpsOrientationProgramView;
+
 @Service
 public class StudentAdmissionService {
 
@@ -215,6 +220,10 @@ public class StudentAdmissionService {
     private CollegeTypeRepo collegeTypeRepo;
     @Autowired
     private StateAppRepository stateAppRepository;
+    @Autowired
+    private CmpsOrientationStreamViewRepository cmpsOrientationStreamViewRepository;
+    @Autowired
+    private CmpsOrientationProgramViewRepository cmpsOrientationProgramViewRepository;
 
     StudentAdmissionService(CampusDetailsRepository campusDetailsRepository) {
         this.campusDetailsRepository = campusDetailsRepository;
@@ -375,6 +384,30 @@ public class StudentAdmissionService {
     public List<GenericDropdownDTO> getAllPaymentModes() {
         return paymentModeRepo.findAll().stream()
                 .map(mode -> new GenericDropdownDTO(mode.getPayment_mode_id(), mode.getPayment_type()))
+                .collect(Collectors.toList());
+    }
+
+    // @Cacheable(value = "programsByOrientation", key = "#orientationId")
+    public List<GenericDropdownDTO> getProgramsByOrientationId(int orientationId) {
+        return cmpsOrientationProgramViewRepository.findByOrientationId(orientationId).stream()
+                .map(data -> new GenericDropdownDTO(data.getProgramId(), data.getProgramName()))
+                .distinct()
+                .collect(Collectors.toList());
+    }
+
+    // @Cacheable(value = "examProgramsByOrientation", key = "#orientationId")
+    public List<GenericDropdownDTO> getExamProgramsByOrientationId(int orientationId) {
+        return cmpsOrientationProgramViewRepository.findByOrientationId(orientationId).stream()
+                .map(data -> new GenericDropdownDTO(data.getExamProgramId(), data.getExamProgramName()))
+                .distinct()
+                .collect(Collectors.toList());
+    }
+
+    // @Cacheable(value = "streamsByOrientation", key = "#orientationId")
+    public List<GenericDropdownDTO> getStreamsByOrientationId(int orientationId) {
+        return cmpsOrientationStreamViewRepository.findByOrientationId(orientationId).stream()
+                .map(data -> new GenericDropdownDTO(data.getStreamId(), data.getStreamName()))
+                .distinct() // Ensure uniqueness if multiple rows have same stream
                 .collect(Collectors.toList());
     }
 
@@ -1443,6 +1476,12 @@ public class StudentAdmissionService {
         if (saleDTO.getAppTypeId() != null)
             academicDetails.setAdmissionType(admissionTypeRepo.findById(saleDTO.getAppTypeId())
                     .orElseThrow(() -> new EntityNotFoundException("Admission type not found")));
+
+        // Set Updated By and Updated Date
+        if (saleDTO.getUpdatedBy() != null) {
+            academicDetails.setUpdated_by(saleDTO.getUpdatedBy());
+        }
+        academicDetails.setUpdated_date(LocalDateTime.now());
 
         // --------------------------
         // 4. UPDATE PERSONAL DETAILS
