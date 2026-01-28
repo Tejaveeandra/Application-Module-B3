@@ -111,6 +111,8 @@ import com.application.repository.CmpsOrientationStreamViewRepository;
 import com.application.entity.CmpsOrientationStreamView;
 import com.application.repository.CmpsOrientationProgramViewRepository;
 import com.application.entity.CmpsOrientationProgramView;
+import com.application.repository.ExamProgramRepository;
+import com.application.entity.ExamProgram;
 
 @Service
 public class StudentAdmissionService {
@@ -224,6 +226,8 @@ public class StudentAdmissionService {
     private CmpsOrientationStreamViewRepository cmpsOrientationStreamViewRepository;
     @Autowired
     private CmpsOrientationProgramViewRepository cmpsOrientationProgramViewRepository;
+    @Autowired
+    private ExamProgramRepository examProgramRepository;
 
     StudentAdmissionService(CampusDetailsRepository campusDetailsRepository) {
         this.campusDetailsRepository = campusDetailsRepository;
@@ -395,10 +399,19 @@ public class StudentAdmissionService {
                 .collect(Collectors.toList());
     }
 
-    // @Cacheable(value = "examProgramsByOrientation", key = "#orientationId")
-    public List<GenericDropdownDTO> getExamProgramsByOrientationId(int orientationId) {
-        return cmpsOrientationProgramViewRepository.findByOrientationId(orientationId).stream()
-                .map(data -> new GenericDropdownDTO(data.getExamProgramId(), data.getExamProgramName()))
+    // @Cacheable(value = "examProgramsByStream", key = "#streamId")
+    public List<GenericDropdownDTO> getExamProgramsByStreamId(int streamId) {
+        return examProgramRepository.findByStream_id(streamId).stream()
+                .map(data -> new GenericDropdownDTO(data.getExam_program_id(), data.getExamProgramName()))
+                .distinct()
+                .collect(Collectors.toList());
+    }
+
+    // @Cacheable(value = "subProgramsByOrientation", key = "{#orientationId,
+    // #programId}")
+    public List<GenericDropdownDTO> getSubProgramsByOrientationId(int orientationId, int programId) {
+        return cmpsOrientationProgramViewRepository.findByOrientationIdAndProgramId(orientationId, programId).stream()
+                .map(data -> new GenericDropdownDTO(data.getSubProgramId(), data.getSubProgramName()))
                 .distinct()
                 .collect(Collectors.toList());
     }
@@ -408,6 +421,15 @@ public class StudentAdmissionService {
         return cmpsOrientationStreamViewRepository.findByOrientationId(orientationId).stream()
                 .map(data -> new GenericDropdownDTO(data.getStreamId(), data.getStreamName()))
                 .distinct() // Ensure uniqueness if multiple rows have same stream
+                .collect(Collectors.toList());
+    }
+
+    // @Cacheable(value = "subStreamsByOrientation", key = "{#orientationId,
+    // #streamId}")
+    public List<GenericDropdownDTO> getSubStreamsByOrientationId(int orientationId, int streamId) {
+        return cmpsOrientationStreamViewRepository.findByOrientationIdAndStreamId(orientationId, streamId).stream()
+                .map(data -> new GenericDropdownDTO(data.getSubStreamId(), data.getSubStreamName()))
+                .distinct()
                 .collect(Collectors.toList());
     }
 

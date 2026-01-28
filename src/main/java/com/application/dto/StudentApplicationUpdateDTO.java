@@ -11,20 +11,21 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class StudentApplicationUpdateDTO {
-	
-	private Long studAdmsNo;
-    private Integer createdBy;
 
-    private String hallTicketNumber;      // "Hall Ticket Number"
-    private Integer schoolStateId;        // "School State"
-    private Integer schoolDistrictId;     // "School District"
-    private String schoolName;            // "School Name" (Assuming text or value)
-    private String scoreAppNo;            // "Score App No"
-    private Integer scoreMarks;           // "Score Marks"
+    private Long studAdmsNo;
+    private Integer createdBy;
+    private Integer updatedBy;
+
+    private String hallTicketNumber; // "Hall Ticket Number"
+    private Integer schoolStateId; // "School State"
+    private Integer schoolDistrictId; // "School District"
+    private String schoolName; // "School Name" (Assuming text or value)
+    private String scoreAppNo; // "Score App No"
+    private Integer scoreMarks; // "Score Marks"
     private Long proReceiptNo;
-    private Integer foodTypeId;           // "Food Type"
-    private Integer bloodGroupId;         // "Blood Group"
-    private Integer religionId;           // "Religion"
+    private Integer foodTypeId; // "Food Type"
+    private Integer bloodGroupId; // "Blood Group"
+    private Integer religionId; // "Religion"
     private Integer casteId;
     // Personal Information
     private String firstName;
@@ -57,8 +58,8 @@ public class StudentApplicationUpdateDTO {
     private Integer classId; // Joining Class
     private Integer orientationId; // Course Name (assuming ID)
     private Integer studentTypeId; // Student Type
-    
-    //previous college
+
+    // previous college
     private String preCollegeName;
     private Integer preCollegeTypeId;
     private Integer preCollegeStateId;
@@ -67,7 +68,7 @@ public class StudentApplicationUpdateDTO {
 
     // Address Information (fields as per image)
     private AddressDetailsDTO addressDetails;
-    
+
     private List<SiblingDTO> siblings;
 
     // --- Concession Info (List) ---

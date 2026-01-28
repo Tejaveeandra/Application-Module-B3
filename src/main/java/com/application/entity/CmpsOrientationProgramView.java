@@ -12,7 +12,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "sce_cmps_orientation_program", schema = "sce_course")
+@Table(name = "sce_cmps_orientation_program_sub_program", schema = "sce_course")
 public class CmpsOrientationProgramView {
 
     @Id
@@ -38,4 +38,10 @@ public class CmpsOrientationProgramView {
 
     @Column(name = "exam_program_name")
     private String examProgramName;
+
+    @Column(name = "sub_program_id")
+    private int subProgramId;
+
+    @Column(name = "sub_program_name")
+    private String subProgramName;
 }

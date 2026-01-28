@@ -12,4 +12,6 @@ public interface CmpsOrientationStreamViewRepository extends JpaRepository<CmpsO
 
     List<CmpsOrientationStreamView> findByOrientationId(int orientationId);
 
+    List<CmpsOrientationStreamView> findByOrientationIdAndStreamId(int orientationId, int streamId);
+
 }

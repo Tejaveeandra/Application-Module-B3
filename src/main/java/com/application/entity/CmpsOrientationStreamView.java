@@ -12,7 +12,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "sce_cmps_orientation_stream", schema = "sce_course")
+@Table(name = "sce_cmps_orientation_stream_sub_stream", schema = "sce_course")
 public class CmpsOrientationStreamView {
 
     @Id
@@ -24,7 +24,7 @@ public class CmpsOrientationStreamView {
     @Column(name = "cmps_name")
     private String cmpsName;
 
-    @Column(name = "orientation_id") 
+    @Column(name = "orientation_id")
     private int orientationId;
 
     @Column(name = "orientation_name")
@@ -33,4 +33,9 @@ public class CmpsOrientationStreamView {
     @Column(name = "stream_id")
     private int streamId;
 
+    @Column(name = "sub_stream_id")
+    private int subStreamId;
+
+    @Column(name = "sub_stream_name")
+    private String subStreamName;
 }

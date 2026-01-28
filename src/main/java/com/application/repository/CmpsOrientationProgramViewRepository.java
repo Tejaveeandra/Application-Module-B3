@@ -12,4 +12,6 @@ public interface CmpsOrientationProgramViewRepository extends JpaRepository<Cmps
 
     List<CmpsOrientationProgramView> findByOrientationId(int orientationId);
 
+    List<CmpsOrientationProgramView> findByOrientationIdAndProgramId(int orientationId, int programId);
+
 }

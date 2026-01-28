@@ -113,14 +113,28 @@ public class StudentAdmissionController {
         return studentAdmissionService.getStreamsByOrientationId(orientationId);
     }
 
+    @GetMapping("/sub-streams/{orientationId}")
+    public List<GenericDropdownDTO> getSubStreamsByOrientationId(
+            @PathVariable int orientationId,
+            @RequestParam int streamId) {
+        return studentAdmissionService.getSubStreamsByOrientationId(orientationId, streamId);
+    }
+
     @GetMapping("/programs/{orientationId}")
     public List<GenericDropdownDTO> getProgramsByOrientationId(@PathVariable int orientationId) {
         return studentAdmissionService.getProgramsByOrientationId(orientationId);
     }
 
-    @GetMapping("/exam-programs/{orientationId}")
-    public List<GenericDropdownDTO> getExamProgramsByOrientationId(@PathVariable int orientationId) {
-        return studentAdmissionService.getExamProgramsByOrientationId(orientationId);
+    @GetMapping("/sub-programs/{orientationId}")
+    public List<GenericDropdownDTO> getSubProgramsByOrientationId(
+            @PathVariable int orientationId,
+            @RequestParam int programId) {
+        return studentAdmissionService.getSubProgramsByOrientationId(orientationId, programId);
+    }
+
+    @GetMapping("/exam-programs/{streamId}")
+    public List<GenericDropdownDTO> getExamProgramsByStreamId(@PathVariable int streamId) {
+        return studentAdmissionService.getExamProgramsByStreamId(streamId);
     }
 
     @GetMapping("/districts/{stateId}") // used/c

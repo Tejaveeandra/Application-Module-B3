@@ -188,11 +188,12 @@ public class ApplicationFastSale {
 		if (admissionNumberNumeric == null) {
 			throw new IllegalArgumentException("Admission Number must be provided.");
 		}
-		List<Distribution> distributions = distributionRepository.findProDistributionForAdmissionNumber(admissionNumberNumeric);
-		Distribution distribution = distributions.isEmpty() 
-				? null 
+		List<Distribution> distributions = distributionRepository
+				.findProDistributionForAdmissionNumber(admissionNumberNumeric);
+		Distribution distribution = distributions.isEmpty()
+				? null
 				: distributions.get(0); // Take the first (most recent) distribution
-		
+
 		if (distribution == null) {
 			throw new EntityNotFoundException(
 					"No PRO has been assigned for Admission Number: " + admissionNumberNumeric);
@@ -568,11 +569,12 @@ public class ApplicationFastSale {
 		// ==============================================================
 		// PART 1: VALIDATE PRO and LOOKUP/FETCH Academic Record
 		// ==============================================================
-		List<Distribution> distributions = distributionRepository.findProDistributionForAdmissionNumber(admissionNumberNumeric);
-		Distribution distribution = distributions.isEmpty() 
-				? null 
+		List<Distribution> distributions = distributionRepository
+				.findProDistributionForAdmissionNumber(admissionNumberNumeric);
+		Distribution distribution = distributions.isEmpty()
+				? null
 				: distributions.get(0); // Take the first (most recent) distribution
-		
+
 		if (distribution == null) {
 			throw new EntityNotFoundException(
 					"No PRO has been assigned for Admission Number: " + admissionNumberNumeric);
@@ -891,7 +893,7 @@ public class ApplicationFastSale {
 					concessionReasonRepository.findById(concDto.getReasonId())
 							.ifPresent(concession::setConcessionReason);
 				concession.setConc_referred_by(concDto.getConcReferedBy());
-				
+
 				// For awards, use authorizedById for conc_issued_by
 				// If authorizedById is provided, use it for issued_by (treating it as an award)
 				if (concDto.getAuthorizedById() != null) {
@@ -1350,6 +1352,11 @@ public class ApplicationFastSale {
 		// 2. UPDATE ACADEMIC DETAILS (NULL-SAFE & ZERO-SAFE)
 		// ==============================================================
 
+		if (formData.getUpdatedBy() != null) {
+			academicDetails.setUpdated_by(formData.getUpdatedBy());
+			academicDetails.setUpdated_date(LocalDateTime.now());
+		}
+
 		if (formData.getAcademicYearId() != null && formData.getAcademicYearId() > 0) {
 			academicYearRepository.findById(formData.getAcademicYearId()).ifPresent(academicDetails::setAcademicYear);
 		}
@@ -1710,7 +1717,7 @@ public class ApplicationFastSale {
 					concessionReasonRepository.findById(c.getReasonId()).ifPresent(conc::setConcessionReason);
 
 				conc.setConc_referred_by(c.getConcReferedBy());
-				
+
 				// For awards, use authorizedById for conc_issued_by
 				// If authorizedById is provided, use it for issued_by (treating it as an award)
 				if (c.getAuthorizedById() != null) {
@@ -1894,7 +1901,7 @@ public class ApplicationFastSale {
 				}
 
 				concession.setConc_referred_by(concDto.getConcReferedBy());
-				
+
 				// For awards, use authorizedById for conc_issued_by
 				// If authorizedById is provided, use it for issued_by (treating it as an award)
 				if (concDto.getAuthorizedById() != null) {
