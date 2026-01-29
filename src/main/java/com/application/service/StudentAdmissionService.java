@@ -840,13 +840,13 @@ public class StudentAdmissionService {
 
         academicDetails.setStudAdmsNo(formData.getStudAdmsNo());
         if (formData.getProReceiptNo() != null) {
-            academicDetails.setPro_receipt_no(formData.getProReceiptNo().intValue());
+            academicDetails.setPro_receipt_no(formData.getProReceiptNo());
         }
         academicDetails.setFirst_name(formData.getFirstName());
         academicDetails.setLast_name(formData.getLastName());
         academicDetails.setApaar_no(formData.getApaarNo());
         if (academicDetails.getAdms_date() == null) {
-            academicDetails.setAdms_date(LocalDateTime.now());
+            academicDetails.setAdms_date(LocalDate.now());
         }
 
         // Convert Date to LocalDateTime for app_sale_date
@@ -1145,13 +1145,13 @@ public class StudentAdmissionService {
 
         academicDetails.setStudAdmsNo(formData.getStudAdmsNo());
         if (formData.getProReceiptNo() != null) {
-            academicDetails.setPro_receipt_no(formData.getProReceiptNo().intValue());
+            academicDetails.setPro_receipt_no(formData.getProReceiptNo());
         }
         academicDetails.setFirst_name(formData.getFirstName());
         academicDetails.setLast_name(formData.getLastName());
         academicDetails.setApaar_no(formData.getApaarNo());
         if (academicDetails.getAdms_date() == null) {
-            academicDetails.setAdms_date(LocalDateTime.now());
+            academicDetails.setAdms_date(LocalDate.now());
         }
 
         // Convert Date to LocalDateTime for app_sale_date
@@ -1301,7 +1301,9 @@ public class StudentAdmissionService {
         detailsDTO.setFirstName(student.getFirst_name());
         detailsDTO.setLastName(student.getLast_name());
         detailsDTO.setApaarNo(student.getApaar_no());
-        detailsDTO.setProReceiptNo((long) student.getPro_receipt_no());
+        if (student.getPro_receipt_no() != null) {
+            detailsDTO.setProReceiptNo(student.getPro_receipt_no());
+        }
         if (student.getGender() != null) {
             detailsDTO.setGenderId(student.getGender().getGender_id());
             detailsDTO.setGenderName(student.getGender().getGenderName());
@@ -1469,7 +1471,7 @@ public class StudentAdmissionService {
             academicDetails.setApaar_no(saleDTO.getApaarNo());
 
         if (saleDTO.getProReceiptNo() != null)
-            academicDetails.setPro_receipt_no(saleDTO.getProReceiptNo().intValue());
+            academicDetails.setPro_receipt_no(saleDTO.getProReceiptNo());
 
         if (saleDTO.getGenderId() != null)
             academicDetails.setGender(genderRepo.findById(saleDTO.getGenderId())

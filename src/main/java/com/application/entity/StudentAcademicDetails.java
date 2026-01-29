@@ -2,7 +2,6 @@ package com.application.entity;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.Date;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -28,32 +27,73 @@ public class StudentAcademicDetails {
 	private int stud_adms_id;
 	@Column(name = "stud_adms_no")
 	private Long studAdmsNo;
+	
+	@Column(name = "ht_no")
 	private String ht_no;
+	
+	@Column(name = "first_name")
 	private String first_name;
+	
+	@Column(name = "last_name")
 	private String last_name;
-	private LocalDateTime adms_date;
+	
+	@Column(name = "adms_date")
+	private LocalDate adms_date;
+	
+	@Column(name = "created_by")
 	private int created_by;
+	
+	@Column(name = "created_date")
+	private LocalDateTime created_date;
+	
+	@Column(name = "updated_by")
 	private Integer updated_by;
+	
+	@Column(name = "updated_date")
 	private LocalDateTime updated_date;
+	
+	@Column(name = "doj")
 	private LocalDate doj;
-	// private Integer orientation_id;
 	// @Column(name = "orientation_batch_id")
 	// private int orientation_batch_id;
 	@Column(name = "pre_school_name")
 	private String pre_school_name;
+	
+	@Column(name = "admission_referred_by")
 	private String admission_referred_by;
+	
+	@Column(name = "score_app_no")
 	private String score_app_no;
-	private int score_marks;
-	// private Date orientation_date;
-	private int additional_orientation_fee;
+	
+	@Column(name = "score_marks")
+	private Integer score_marks;
+	
+	@Column(name = "additional_orientation_fee")
+	private Long additional_orientation_fee;
+	
+	@Column(name = "app_sale_date")
 	private LocalDateTime app_sale_date;
+	
+	@Column(name = "app_conf_date")
 	private LocalDateTime app_conf_date;
+	
+	@Column(name = "is_active")
 	private int is_active;
+	
+	@Column(name = "apaar_no")
 	private String apaar_no;
+	
+	@Column(name = "annexure_path")
 	private String annexure_path;
+	
+	@Column(name = "lang_id")
 	private int[] lang_id;
+	
+	@Column(name = "photo_path")
 	private String photo_path;
-	private int pro_receipt_no;
+	
+	@Column(name = "pro_receipt_no")
+	private Long pro_receipt_no;
 
 	@ManyToOne
 	@JoinColumn(name = "acdc_year_id")
@@ -108,29 +148,14 @@ public class StudentAcademicDetails {
 	private District district;
 
 	@ManyToOne
-	@JoinColumn(name = "school_type_id")
-	private CampusSchoolType campusSchoolType;
-
-	// @ManyToOne
-	// @JoinColumn(name = "stream_id")
-	// private Stream stream;
-
-	// @ManyToOne
-	// @JoinColumn(name = "program_id")
-	// private ProgramName programName;
-
-	// @ManyToOne
-	// @JoinColumn(name = "exam_program_id")
-	// private ExamProgram examProgram;
-
-	// @ManyToOne
-	// @JoinColumn(name = "cmps_orientation_id")
-	// private CmpsOrientation cmpsOrientation;
-
-	@ManyToOne
 	@JoinColumn(name = "pre_school_type_id", referencedColumnName = "school_type_id")
 	private CampusSchoolType preCampusSchoolType;
 
+	@ManyToOne
+	@JoinColumn(name = "orientation_id")
+	private Orientation orientation;
+
+	@Column(name = "pre_hallticket_no")
 	private String pre_hallticket_no;
 
 	@ManyToOne
@@ -145,6 +170,7 @@ public class StudentAcademicDetails {
 	@JoinColumn(name = "pre_college_district_id", referencedColumnName = "district_id")
 	private District district2;
 
+	@Column(name = "pre_college_name")
 	private String pre_college_name;
 
 	@ManyToOne

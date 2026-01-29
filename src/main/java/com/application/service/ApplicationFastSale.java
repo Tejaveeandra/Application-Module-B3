@@ -222,7 +222,7 @@ public class ApplicationFastSale {
 		academicDetails.setStudAdmsNo(formData.getStudAdmsNo());
 		academicDetails.setFirst_name(formData.getFirstName());
 		academicDetails.setLast_name(formData.getLastName());
-		academicDetails.setAdms_date(LocalDateTime.now());
+		academicDetails.setAdms_date(LocalDate.now());
 		academicDetails.setApaar_no(formData.getApaarNo());
 		academicDetails.setApp_sale_date(LocalDateTime.now());
 
@@ -612,13 +612,9 @@ public class ApplicationFastSale {
 			academicYearRepository.findById(formData.getAcademicYearId()).ifPresent(academicDetails::setAcademicYear);
 		if (formData.getStudentTypeId() != null)
 			studentTypeRepository.findById(formData.getStudentTypeId()).ifPresent(academicDetails::setStudentType);
+		// New Fields Mapping
 		if (formData.getPreSchoolTypeId() != null)
 			schoolTypeRepository.findById(formData.getPreSchoolTypeId())
-					.ifPresent(academicDetails::setCampusSchoolType);
-
-		// New Fields Mapping
-		if (formData.getSchoolTypeId() != null)
-			schoolTypeRepository.findById(formData.getSchoolTypeId())
 					.ifPresent(academicDetails::setPreCampusSchoolType);
 
 		if (formData.getStudentStatusId() != null)
@@ -628,7 +624,7 @@ public class ApplicationFastSale {
 			academicDetails.setDoj(formData.getDoj());
 
 		// Fields that must be set/updated regardless of prior state
-		academicDetails.setAdms_date(LocalDateTime.now());
+		academicDetails.setAdms_date(LocalDate.now());
 
 		// Convert Date to LocalDateTime for app_sale_date
 		if (formData.getAppSaleDate() != null) {
@@ -643,7 +639,7 @@ public class ApplicationFastSale {
 		academicDetails.setAdmission_referred_by(formData.getAdmissionReferedBy());
 
 		if (formData.getProReceiptNo() != null) {
-			academicDetails.setPro_receipt_no(formData.getProReceiptNo().intValue());
+			academicDetails.setPro_receipt_no(formData.getProReceiptNo());
 		}
 
 		// New/Detailed Academic Fields
@@ -1027,7 +1023,9 @@ public class ApplicationFastSale {
 					.from(academic.getApp_sale_date().atZone(java.time.ZoneId.systemDefault()).toInstant());
 			dto.setAppSaleDate(appSaleDate);
 		}
-		dto.setProReceiptNo(academic.getPro_receipt_no());
+		if (academic.getPro_receipt_no() != null) {
+			dto.setProReceiptNo(academic.getPro_receipt_no().intValue());
+		}
 		dto.setHallTicketNo(academic.getHt_no());
 		dto.setScoreAppNo(academic.getScore_app_no());
 		dto.setScoreMarks(academic.getScore_marks());
@@ -1123,9 +1121,10 @@ public class ApplicationFastSale {
 			dto.setStudyTypeName(academic.getStudyType().getStudy_type_name());
 		}
 
-		if (academic.getCampusSchoolType() != null) {
-			dto.setSchoolTypeId(academic.getCampusSchoolType().getSchool_type_id());
-			dto.setSchoolTypeName(academic.getCampusSchoolType().getSchool_type_name());
+		// Note: school_type_id field removed from entity - use pre_school_type_id instead if needed
+		if (academic.getPreCampusSchoolType() != null) {
+			dto.setSchoolTypeId(academic.getPreCampusSchoolType().getSchool_type_id());
+			dto.setSchoolTypeName(academic.getPreCampusSchoolType().getSchool_type_name());
 		}
 
 		// Pre-School State & District
@@ -1407,7 +1406,7 @@ public class ApplicationFastSale {
 		}
 
 		if (formData.getProReceiptNo() != null) {
-			academicDetails.setPro_receipt_no(formData.getProReceiptNo().intValue());
+			academicDetails.setPro_receipt_no(formData.getProReceiptNo());
 		}
 
 		if (formData.getAdmissionReferredBy() != null) {
