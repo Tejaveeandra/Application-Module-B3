@@ -178,9 +178,18 @@ public class StudentAdmissionController {
         }
     }
 
-    @GetMapping("/sections-by-orientation/{orientationId}")
-    public ResponseEntity<List<GenericDropdownDTO>> getSectionsByOrientationId(@PathVariable int orientationId) {
-        List<GenericDropdownDTO> sections = studentAdmissionService.getSectionsByOrientationId(orientationId);
+    @GetMapping("/sections-by-orientation/{cmpsOrientationId}")
+    public ResponseEntity<List<GenericDropdownDTO>> getSectionsByCmpsOrientationId(
+            @PathVariable int cmpsOrientationId) {
+        List<GenericDropdownDTO> sections = studentAdmissionService.getSectionsByCmpsOrientationId(cmpsOrientationId);
+        return ResponseEntity.ok(sections);
+    }
+
+    @GetMapping("/sections-by-orientation")
+    public ResponseEntity<List<GenericDropdownDTO>> getSectionsByOrientationId(
+            @RequestParam int cmpsId,
+            @RequestParam int orientationId) {
+        List<GenericDropdownDTO> sections = studentAdmissionService.getSectionsByOrientationId(cmpsId, orientationId);
         return ResponseEntity.ok(sections);
     }
 

@@ -85,8 +85,6 @@ import com.application.repository.StudentTypeRepository;
 import com.application.repository.SubProgramRepository;
 import com.application.repository.SubStreamRepository;
 import com.application.repository.StudyTypeRepository;
-import com.application.entity.StudentOrientationDetails;
-import com.application.repository.StudentOrientationDetailsRepository;
 
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;

@@ -11,6 +11,6 @@ import com.application.entity.SctOrientation;
 @Repository
 public interface SctOrientationRepository extends JpaRepository<SctOrientation, Integer> {
 
-    @Query("SELECT s FROM SctOrientation s WHERE s.cmpsOrientation.cmps_orientation_id = :orientationId")
+    @Query("SELECT s FROM SctOrientation s WHERE s.cmpsOrientation.cmps_orientation_id = :orientationId AND s.is_active = 1")
     List<SctOrientation> findByCmpsOrientationId(@Param("orientationId") int orientationId);
 }

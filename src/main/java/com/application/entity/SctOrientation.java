@@ -1,4 +1,5 @@
 package com.application.entity;
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
@@ -17,7 +18,12 @@ public class SctOrientation {
 	
 	@Id
 	private int sct_orientation_id;
-	private int sct_incharge_id;
+	
+	@Column(name = "sct_incharge_id")
+	private Integer sct_incharge_id;
+	
+	@Column(name = "is_active")
+	private Integer is_active;
 	
 	@ManyToOne
 	@JoinColumn(name = "section_id")

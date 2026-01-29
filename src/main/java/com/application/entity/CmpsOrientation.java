@@ -26,6 +26,10 @@ public class CmpsOrientation {
 	private Integer acdcYearId;
 	private float orientation_fee;
 	
+
+	@Column(name = "is_active")
+	private Integer is_active;
+	
 	@ManyToOne
 	@JoinColumn(name = "orientation_id")
 	private Orientation orientation;

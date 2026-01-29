@@ -1599,8 +1599,38 @@ public class StudentAdmissionService {
     @Autowired
     private SctOrientationRepository sctOrientationRepository;
 
-    public List<GenericDropdownDTO> getSectionsByOrientationId(int orientationId) {
-        List<SctOrientation> list = sctOrientationRepository.findByCmpsOrientationId(orientationId);
+    public List<GenericDropdownDTO> getSectionsByOrientationId(int cmpsId, int orientationId) {
+        // First, find the cmps_orientation_id using cmps_id and orientation_id
+        List<CmpsOrientation> cmpsOrientations = cmpsOrientationRepo.findByCmpsIdAndOrientationOrientationId(cmpsId, orientationId);
+        
+        if (cmpsOrientations.isEmpty()) {
+            return Collections.emptyList();
+        }
+        
+        // Get the first matching cmps_orientation_id with is_active = 1
+        CmpsOrientation cmpsOrientation = cmpsOrientations.stream()
+                .filter(co -> co.getIs_active() != null && co.getIs_active() == 1)
+                .findFirst()
+                .orElse(null);
+        
+        if (cmpsOrientation == null) {
+            return Collections.emptyList();
+        }
+        
+        // Now use cmps_orientation_id to get sections (already filtered by is_active = 1 in repository)
+        List<SctOrientation> list = sctOrientationRepository.findByCmpsOrientationId(cmpsOrientation.getCmps_orientation_id());
+        return list.stream().map(sct -> {
+            GenericDropdownDTO dto = new GenericDropdownDTO();
+            if (sct.getSection() != null) {
+                dto.setId(sct.getSection().getSection_id());
+                dto.setName(sct.getSection().getSectionName());
+            }
+            return dto;
+        }).filter(dto -> dto.getId() != null).collect(Collectors.toList());
+    }
+
+    public List<GenericDropdownDTO> getSectionsByCmpsOrientationId(int cmpsOrientationId) {
+        List<SctOrientation> list = sctOrientationRepository.findByCmpsOrientationId(cmpsOrientationId);
         return list.stream().map(sct -> {
             GenericDropdownDTO dto = new GenericDropdownDTO();
             if (sct.getSection() != null) {
