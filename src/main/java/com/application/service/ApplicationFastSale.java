@@ -612,8 +612,20 @@ public class ApplicationFastSale {
 			academicYearRepository.findById(formData.getAcademicYearId()).ifPresent(academicDetails::setAcademicYear);
 		if (formData.getStudentTypeId() != null)
 			studentTypeRepository.findById(formData.getStudentTypeId()).ifPresent(academicDetails::setStudentType);
-		if (formData.getSchoolType() != null)
-			schoolTypeRepository.findById(formData.getSchoolType()).ifPresent(academicDetails::setCampusSchoolType);
+		if (formData.getPreSchoolTypeId() != null)
+			schoolTypeRepository.findById(formData.getPreSchoolTypeId())
+					.ifPresent(academicDetails::setCampusSchoolType);
+
+		// New Fields Mapping
+		if (formData.getSchoolTypeId() != null)
+			schoolTypeRepository.findById(formData.getSchoolTypeId())
+					.ifPresent(academicDetails::setPreCampusSchoolType);
+
+		if (formData.getStudentStatusId() != null)
+			statusRepository.findById(formData.getStudentStatusId()).ifPresent(academicDetails::setStudStatus);
+
+		if (formData.getDoj() != null)
+			academicDetails.setDoj(formData.getDoj());
 
 		// Fields that must be set/updated regardless of prior state
 		academicDetails.setAdms_date(LocalDateTime.now());

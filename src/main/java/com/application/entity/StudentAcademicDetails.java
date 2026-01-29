@@ -147,4 +147,8 @@ public class StudentAcademicDetails {
 
 	private String pre_college_name;
 
+	@ManyToOne
+	@JoinColumn(name = "stud_status_id")
+	private Status studStatus;
+
 }

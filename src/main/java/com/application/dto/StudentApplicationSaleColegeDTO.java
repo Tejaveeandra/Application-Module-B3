@@ -14,16 +14,19 @@ public class StudentApplicationSaleColegeDTO {
 
     private String hallTicketNumber; // "Hall Ticket Number"
     private String preHallTicketNo;
-    private Integer schoolStateId;        // "School State"
-    private Integer schoolDistrictId;     // "School District"
-    private String schoolName;            // "School Name" (Assuming text or value)
-    private String scoreAppNo;            // "Score App No"
-    private Integer scoreMarks;           // "Score Marks"
-    private Integer schoolType;
+    private Integer schoolStateId; // "School State"
+    private Integer schoolDistrictId; // "School District"
+    private String schoolName; // "School Name" (Assuming text or value)
+    private String scoreAppNo; // "Score App No"
+    private Integer scoreMarks; // "Score Marks"
+    private Integer schoolTypeId; // "School Type"
+    private Integer studentStatusId; // "Student Status"
+    private LocalDate doj; // "Date of Join"
+    private Integer preSchoolTypeId; // "Pre School Type"
     private Long proReceiptNo;
-    private Integer foodTypeId;           // "Food Type"
-    private Integer bloodGroupId;         // "Blood Group"
-    private Integer religionId;           // "Religion"
+    private Integer foodTypeId; // "Food Type"
+    private Integer bloodGroupId; // "Blood Group"
+    private Integer religionId; // "Religion"
     private Integer casteId;
     // Personal Information
     private String firstName;
@@ -51,26 +54,25 @@ public class StudentApplicationSaleColegeDTO {
 
     // Orientation Information
     private Integer academicYearId;
-//    private Integer cityId; // Select City
+    // private Integer cityId; // Select City
     private Integer branchId; // Select Branch
     private Integer classId; // Joining Class
     private Integer orientationId; // Course Name (assuming ID)
     private Integer studentTypeId; // Student Type
-    
+
     // ========================================
     // 🔵 PREVIOUS COLLEGE DETAILS (Added Now)
     // ========================================
     private String preCollegeName;
-    private Integer preCollegeTypeId;      // Maps to pre_college_type_id
-    private Integer preCollegeStateId;     // Maps to pre_college_state_id
-    private Integer preCollegeDistrictId;  // Maps to pre_college_district_id
- 
+    private Integer preCollegeTypeId; // Maps to pre_college_type_id
+    private Integer preCollegeStateId; // Maps to pre_college_state_id
+    private Integer preCollegeDistrictId; // Maps to pre_college_district_id
 
     // Address Information (fields as per image)
     private AddressDetailsDTO addressDetails;
-    
-    private PaymentDetailsDTO paymentDetails; 
-    
+
+    private PaymentDetailsDTO paymentDetails;
+
     private List<SiblingDTO> siblings;
 
     // --- Concession Info (List) ---
