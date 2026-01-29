@@ -278,6 +278,9 @@ public class ApplicationFastSale {
 		// Employee/PRO (from lookup)
 		academicDetails.setCreated_by(formData.getCreatedBy());
 		academicDetails.setEmployee(pro);
+		
+		// Set created_date for new record
+		academicDetails.setCreated_date(LocalDateTime.now());
 
 		// Defaults
 		StudyType defaultStudyType = studyTypeRepository.findById(1)
@@ -710,7 +713,10 @@ public class ApplicationFastSale {
 			districtRepository.findById(formData.getPreCollegeDistrictId()).ifPresent(academicDetails::setDistrict2);
 		}
 		academicDetails.setCreated_by(formData.getCreatedBy());
-		academicDetails.setCreated_date(LocalDateTime.now());
+		// Set created_date only for new records (stud_adms_id is 0 for new records)
+		if (academicDetails.getStud_adms_id() == 0 || academicDetails.getCreated_date() == null) {
+			academicDetails.setCreated_date(LocalDateTime.now());
+		}
 		academicDetails.setEmployee(pro);
 
 		// Defaults/Status Update
