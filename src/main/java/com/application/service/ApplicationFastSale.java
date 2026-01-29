@@ -1588,9 +1588,10 @@ public class ApplicationFastSale {
 				sectorRepository.findById(formData.getFatherSectorId()).ifPresent(father::setSector);
 			}
 
-			if (formData.getFatherOccupationId() != null && formData.getFatherOccupationId() > 0) {
-				// You currently store occupation as String in ParentDetails.
-				// We fetch occupation entity and store its name into the occupation column.
+			// Occupation: Prefer Free Text -> Then ID Lookup
+			if (formData.getFatherOccupation() != null && !formData.getFatherOccupation().isEmpty()) {
+				father.setOccupation(formData.getFatherOccupation());
+			} else if (formData.getFatherOccupationId() != null && formData.getFatherOccupationId() > 0) {
 				occupationRepository.findById(formData.getFatherOccupationId())
 						.ifPresent(occupation -> father.setOccupation(occupation.getOccupation_name()));
 			}
@@ -1629,7 +1630,10 @@ public class ApplicationFastSale {
 				sectorRepository.findById(formData.getMotherSectorId()).ifPresent(mother::setSector);
 			}
 
-			if (formData.getMotherOccupationId() != null && formData.getMotherOccupationId() > 0) {
+			// Occupation: Prefer Free Text -> Then ID Lookup
+			if (formData.getMotherOccupation() != null && !formData.getMotherOccupation().isEmpty()) {
+				mother.setOccupation(formData.getMotherOccupation());
+			} else if (formData.getMotherOccupationId() != null && formData.getMotherOccupationId() > 0) {
 				occupationRepository.findById(formData.getMotherOccupationId())
 						.ifPresent(occupation -> mother.setOccupation(occupation.getOccupation_name()));
 			}

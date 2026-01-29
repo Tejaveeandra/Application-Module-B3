@@ -45,11 +45,13 @@ public class StudentApplicationUpdateDTO {
     private String fatherEmail;
     private Integer fatherSectorId; // Select Sector
     private Integer fatherOccupationId; // Select Occupation
+    private String fatherOccupation; // Free text Occupation
     private String motherName;
     private Long motherMobileNo;
     private String motherEmail;
     private Integer motherSectorId; // Select Sector
     private Integer motherOccupationId; // Select Occupation
+    private String motherOccupation; // Free text Occupation
 
     // Orientation Information
     private Integer academicYearId;
