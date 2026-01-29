@@ -2,6 +2,7 @@ package com.application.entity;
 
 import java.util.Date;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -24,6 +25,9 @@ public class StudentOrientationDetails {
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private int stud_orientation_id;
 	private Date orientation_date;
+	
+	@Column(name = "is_active")
+	private Integer is_active;
 
 	@ManyToOne
 	@JoinColumn(name = "stud_adms_id")

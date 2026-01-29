@@ -23,6 +23,12 @@ public class StudentCollegeConfirmationDto {
 	private Integer courseNameId;
 	private Integer subStreamId;
 	private Integer subProgramId;
+	
+	// Orientation Details
+	private Integer sectionId;
+	private Integer streamId;
+	private Integer programId;
+	private Integer examProgramId;
 
 	// Assuming a way to link to the main student record
 	private Long studAdmsNo;

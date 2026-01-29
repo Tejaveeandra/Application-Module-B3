@@ -85,6 +85,10 @@ import com.application.repository.StudentTypeRepository;
 import com.application.repository.SubProgramRepository;
 import com.application.repository.SubStreamRepository;
 import com.application.repository.StudyTypeRepository;
+import com.application.repository.SectionRepository;
+import com.application.repository.StreamRepository;
+import com.application.repository.ProgramNameRepository;
+import com.application.repository.ExamProgramRepository;
 
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
@@ -180,6 +184,14 @@ public class ApplicationFastSale {
 	CollegeTypeRepo collegeTypeRepo;
 	@Autowired
 	private ProConcessionRepository proConcessionRepository;
+	@Autowired
+	private SectionRepository sectionRepository;
+	@Autowired
+	private StreamRepository streamRepository;
+	@Autowired
+	private ProgramNameRepository programNameRepository;
+	@Autowired
+	private ExamProgramRepository examProgramRepository;
 
 	ApplicationFastSale(EmployeeRepository employeeRepository, ReligionRepository religionRepository,
 			DgmRepository dgmRepository) {
@@ -1894,12 +1906,45 @@ public class ApplicationFastSale {
 		studOrientationDetails.setStudentAcademicDetails(savedAcademicDetails);
 		studOrientationDetails.setStudentClass(savedAcademicDetails.getStudentClass());
 		studOrientationDetails.setOrientation_date(new java.util.Date());
+		studOrientationDetails.setIs_active(1); // Set is_active = 1
 
-		if (formData.getSubStreamId() != null) {
-			subStreamRepository.findById(formData.getSubStreamId()).ifPresent(studOrientationDetails::setSubStream);
+		// Set Section
+		if (formData.getSectionId() != null) {
+			sectionRepository.findById(formData.getSectionId())
+				.ifPresent(studOrientationDetails::setSection);
 		}
+		
+		// Set Stream
+		if (formData.getStreamId() != null) {
+			streamRepository.findById(formData.getStreamId())
+				.ifPresent(studOrientationDetails::setStream);
+		}
+		
+		// Set Program (only if status = 1, which means active)
+		if (formData.getProgramId() != null) {
+			programNameRepository.findById(formData.getProgramId())
+				.filter(program -> program.getStatus() == null || program.getStatus() == 1)
+				.ifPresent(studOrientationDetails::setProgramName);
+		}
+		
+		// Set Exam Program (only if status = 1, which means active)
+		if (formData.getExamProgramId() != null) {
+			examProgramRepository.findById(formData.getExamProgramId())
+				.filter(exam -> exam.getStatus() == null || exam.getStatus() == 1)
+				.ifPresent(studOrientationDetails::setExamProgram);
+		}
+		
+		// Set Sub Stream
+		if (formData.getSubStreamId() != null) {
+			subStreamRepository.findById(formData.getSubStreamId())
+				.ifPresent(studOrientationDetails::setSubStream);
+		}
+		
+		// Set Sub Program (only if status = 1, which means active)
 		if (formData.getSubProgramId() != null) {
-			subProgramRepository.findById(formData.getSubProgramId()).ifPresent(studOrientationDetails::setSubProgram);
+			subProgramRepository.findById(formData.getSubProgramId())
+				.filter(subProgram -> subProgram.getStatus() == 1)
+				.ifPresent(studOrientationDetails::setSubProgram);
 		}
 
 		studentOrientationDetailsRepository.save(studOrientationDetails);
