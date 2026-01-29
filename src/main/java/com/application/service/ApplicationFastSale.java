@@ -757,9 +757,14 @@ public class ApplicationFastSale {
 			father.setEmail(formData.getFatherEmail());
 			if (formData.getFatherSectorId() != null)
 				sectorRepository.findById(formData.getFatherSectorId()).ifPresent(father::setSector);
-			if (formData.getFatherOccupationId() != null)
+
+			// Occupation: Prefer text if provided, else lookup by ID
+			if (formData.getFatherOccupation() != null && !formData.getFatherOccupation().isEmpty()) {
+				father.setOccupation(formData.getFatherOccupation());
+			} else if (formData.getFatherOccupationId() != null) {
 				occupationRepository.findById(formData.getFatherOccupationId())
 						.ifPresent(occupation -> father.setOccupation(occupation.getOccupation_name()));
+			}
 			parentDetailsRepository.save(father);
 		}
 
@@ -781,9 +786,14 @@ public class ApplicationFastSale {
 			mother.setEmail(formData.getMotherEmail());
 			if (formData.getMotherSectorId() != null)
 				sectorRepository.findById(formData.getMotherSectorId()).ifPresent(mother::setSector);
-			if (formData.getMotherOccupationId() != null)
+
+			// Occupation: Prefer text if provided, else lookup by ID
+			if (formData.getMotherOccupation() != null && !formData.getMotherOccupation().isEmpty()) {
+				mother.setOccupation(formData.getMotherOccupation());
+			} else if (formData.getMotherOccupationId() != null) {
 				occupationRepository.findById(formData.getMotherOccupationId())
 						.ifPresent(occupation -> mother.setOccupation(occupation.getOccupation_name()));
+			}
 			parentDetailsRepository.save(mother);
 		}
 
@@ -1857,8 +1867,12 @@ public class ApplicationFastSale {
 		// City & Course mapping... (Placeholders)
 
 		Status defaultStatus = statusRepository.findById(1)
-				.orElseThrow(() -> new EntityNotFoundException("Default Status (ID: 2) not found"));
+				.orElseThrow(() -> new EntityNotFoundException("Default Status (ID: 1) not found"));
 		academicDetails.setStatus(defaultStatus);
+
+		// Hardcode studStatus to 1
+		// We can reuse defaultStatus since it is ID 1
+		academicDetails.setStudStatus(defaultStatus);
 
 		StudentAcademicDetails savedAcademicDetails = studentAcademicDetailsRepository.save(academicDetails);
 
