@@ -82,7 +82,11 @@ import com.application.repository.StudentOrientationDetailsRepository;
 import com.application.repository.StudentPersonalDetailsRepository;
 import com.application.repository.StudentRelationRepository;
 import com.application.repository.StudentTypeRepository;
+import com.application.repository.SubProgramRepository;
+import com.application.repository.SubStreamRepository;
 import com.application.repository.StudyTypeRepository;
+import com.application.entity.StudentOrientationDetails;
+import com.application.repository.StudentOrientationDetailsRepository;
 
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
@@ -140,6 +144,12 @@ public class ApplicationFastSale {
 	private CityRepository cityRepository;
 	@Autowired
 	private DistrictRepository districtRepository;
+	@Autowired
+	private StudentOrientationDetailsRepository studentOrientationDetailsRepository;
+	@Autowired
+	private SubStreamRepository subStreamRepository;
+	@Autowired
+	private SubProgramRepository subProgramRepository;
 	@Autowired
 	private MandalRepository mandalRepository;
 	@Autowired
@@ -1121,7 +1131,8 @@ public class ApplicationFastSale {
 			dto.setStudyTypeName(academic.getStudyType().getStudy_type_name());
 		}
 
-		// Note: school_type_id field removed from entity - use pre_school_type_id instead if needed
+		// Note: school_type_id field removed from entity - use pre_school_type_id
+		// instead if needed
 		if (academic.getPreCampusSchoolType() != null) {
 			dto.setSchoolTypeId(academic.getPreCampusSchoolType().getSchool_type_id());
 			dto.setSchoolTypeName(academic.getPreCampusSchoolType().getSchool_type_name());
@@ -1874,6 +1885,21 @@ public class ApplicationFastSale {
 		academicDetails.setStudStatus(defaultStatus);
 
 		StudentAcademicDetails savedAcademicDetails = studentAcademicDetailsRepository.save(academicDetails);
+
+		// 2b. Create/Update StudentOrientationDetails
+		StudentOrientationDetails studOrientationDetails = new StudentOrientationDetails();
+		studOrientationDetails.setStudentAcademicDetails(savedAcademicDetails);
+		studOrientationDetails.setStudentClass(savedAcademicDetails.getStudentClass());
+		studOrientationDetails.setOrientation_date(new java.util.Date());
+
+		if (formData.getSubStreamId() != null) {
+			subStreamRepository.findById(formData.getSubStreamId()).ifPresent(studOrientationDetails::setSubStream);
+		}
+		if (formData.getSubProgramId() != null) {
+			subProgramRepository.findById(formData.getSubProgramId()).ifPresent(studOrientationDetails::setSubProgram);
+		}
+
+		studentOrientationDetailsRepository.save(studOrientationDetails);
 
 		// 3. Save/Update Concession Details (Concession logic remains the same)
 
