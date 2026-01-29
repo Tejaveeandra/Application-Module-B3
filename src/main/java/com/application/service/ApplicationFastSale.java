@@ -298,9 +298,13 @@ public class ApplicationFastSale {
 		personalDetails.setStud_aadhaar_no(formData.getAadharCardNo());
 		personalDetailsRepository.save(personalDetails);
 
-		// --- 3. Save Student Orientation Details ---
-		StudentOrientationDetails orientationDetails = new StudentOrientationDetails();
+		// --- 3. Save Student Orientation Details (Upsert) ---
+		// Find existing active record or create new one
+		StudentOrientationDetails orientationDetails = orientationDetailsRepository
+				.findByStudentAcademicDetailsAndIsActive(savedAcademicDetails)
+				.orElseGet(StudentOrientationDetails::new);
 		orientationDetails.setStudentAcademicDetails(savedAcademicDetails);
+		orientationDetails.setIs_active(1); // Set is_active = 1
 		if (formData.getOrientationId() != null) {
 			orientationRepository.findById(formData.getOrientationId()).ifPresent(orientationDetails::setOrientation);
 		}
@@ -744,10 +748,12 @@ public class ApplicationFastSale {
 		personalDetailsRepository.save(personalDetails);
 
 		// --- 3. Save/Update Student Orientation Details ---
+		// Find existing active record or create new one
 		StudentOrientationDetails orientationDetails = orientationDetailsRepository
-				.findByStudentAcademicDetails(savedAcademicDetails).orElseGet(StudentOrientationDetails::new);
+				.findByStudentAcademicDetailsAndIsActive(savedAcademicDetails).orElseGet(StudentOrientationDetails::new);
 
 		orientationDetails.setStudentAcademicDetails(savedAcademicDetails);
+		orientationDetails.setIs_active(1); // Set is_active = 1
 		if (formData.getOrientationId() != null)
 			orientationRepository.findById(formData.getOrientationId()).ifPresent(orientationDetails::setOrientation);
 		orientationDetailsRepository.save(orientationDetails);
@@ -1385,8 +1391,9 @@ public class ApplicationFastSale {
 		StudentPersonalDetails personalDetails = personalDetailsRepository.findByStudentAcademicDetails(academicDetails)
 				.orElseGet(StudentPersonalDetails::new);
 
+		// Find existing active record or create new one
 		StudentOrientationDetails orientationDetails = orientationDetailsRepository
-				.findByStudentAcademicDetails(academicDetails).orElseGet(StudentOrientationDetails::new);
+				.findByStudentAcademicDetailsAndIsActive(academicDetails).orElseGet(StudentOrientationDetails::new);
 
 		StudentAddress address = studentAddressRepository.findByStudentAcademicDetails(academicDetails)
 				.orElseGet(StudentAddress::new);
@@ -1547,6 +1554,7 @@ public class ApplicationFastSale {
 		// 4. UPDATE ORIENTATION (NULL-SAFE)
 		// ==============================================================
 		orientationDetails.setStudentAcademicDetails(updatedAcademicDetails);
+		orientationDetails.setIs_active(1); // Set is_active = 1
 		if (formData.getOrientationId() != null && formData.getOrientationId() > 0) {
 			orientationRepository.findById(formData.getOrientationId()).ifPresent(orientationDetails::setOrientation);
 		}
@@ -1902,7 +1910,10 @@ public class ApplicationFastSale {
 		StudentAcademicDetails savedAcademicDetails = studentAcademicDetailsRepository.save(academicDetails);
 
 		// 2b. Create/Update StudentOrientationDetails
-		StudentOrientationDetails studOrientationDetails = new StudentOrientationDetails();
+		// Find existing active record or create new one
+		StudentOrientationDetails studOrientationDetails = studentOrientationDetailsRepository
+				.findByStudentAcademicDetailsAndIsActive(savedAcademicDetails)
+				.orElseGet(StudentOrientationDetails::new);
 		studOrientationDetails.setStudentAcademicDetails(savedAcademicDetails);
 		studOrientationDetails.setStudentClass(savedAcademicDetails.getStudentClass());
 		studOrientationDetails.setOrientation_date(new java.util.Date());

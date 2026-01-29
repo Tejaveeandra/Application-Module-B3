@@ -914,8 +914,12 @@ public class StudentAdmissionService {
 
         personalDetailsRepo.save(personalDetails);
 
-        // --- 3. Save Student Orientation Details ---
-        StudentOrientationDetails orientationDetails = new StudentOrientationDetails();
+        // --- 3. Save Student Orientation Details (Upsert) ---
+        // Find existing active record or create new one
+        StudentOrientationDetails orientationDetails = studentOrientationDetailsRepo
+                .findByStudentAcademicDetailsAndIsActive(savedAcademicDetails)
+                .orElse(new StudentOrientationDetails());
+        
         orientationDetails.setStudentAcademicDetails(savedAcademicDetails);
         orientationDetails.setIs_active(1); // Set is_active = 1
         if (formData.getOrientationId() != null)
@@ -1220,8 +1224,9 @@ public class StudentAdmissionService {
         personalDetailsRepo.save(personalDetails);
 
         // --- 3. Save Student Orientation Details (Upsert) ---
+        // Find existing active record or create new one
         StudentOrientationDetails orientationDetails = studentOrientationDetailsRepo
-                .findByStudentAcademicDetails(savedAcademicDetails)
+                .findByStudentAcademicDetailsAndIsActive(savedAcademicDetails)
                 .orElse(new StudentOrientationDetails());
 
         orientationDetails.setStudentAcademicDetails(savedAcademicDetails);
@@ -1535,8 +1540,9 @@ public class StudentAdmissionService {
         // --------------------------
         // 6. UPDATE ORIENTATION
         // --------------------------
+        // Find existing active record or create new one
         StudentOrientationDetails orientationDetails = studentOrientationDetailsRepo
-                .findByStudentAcademicDetails(academicDetails)
+                .findByStudentAcademicDetailsAndIsActive(academicDetails)
                 .orElse(new StudentOrientationDetails());
 
         orientationDetails.setStudentAcademicDetails(academicDetails);
