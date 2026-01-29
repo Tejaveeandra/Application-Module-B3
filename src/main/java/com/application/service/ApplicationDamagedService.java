@@ -553,6 +553,7 @@ public class ApplicationDamagedService {
             // Allowed to damage → Updating existing record
             if (dto.getUpdatedBy() != null) {
                 appStatus.setUpdated_by(dto.getUpdatedBy());
+                appStatus.setUpdated_date(LocalDateTime.now()); // Set only on update
             }
         } else {
             // Create a new damage record
@@ -591,7 +592,7 @@ public class ApplicationDamagedService {
         } else {
             appStatus.setIs_active(1); // DAMAGED etc.
         }
-        appStatus.setUpdated_date(LocalDateTime.now());
+        // appStatus.setUpdated_date(LocalDateTime.now()); // Removed from here
 
         // 5️⃣ Save
         AppStatus saved = appStatusRepository.save(appStatus);
