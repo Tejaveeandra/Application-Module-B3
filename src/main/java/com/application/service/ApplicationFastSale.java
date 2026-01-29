@@ -1866,12 +1866,12 @@ public class ApplicationFastSale {
 
 		// City & Course mapping... (Placeholders)
 
-		Status defaultStatus = statusRepository.findById(1)
-				.orElseThrow(() -> new EntityNotFoundException("Default Status (ID: 1) not found"));
+		Status defaultStatus = statusRepository.findById(5)
+				.orElseThrow(() -> new EntityNotFoundException("Default Status (ID: 5) not found"));
 		academicDetails.setStatus(defaultStatus);
 
-		// Hardcode studStatus to 1
-		// We can reuse defaultStatus since it is ID 1
+		// Hardcode studStatus to 5
+		// We can reuse defaultStatus since it is ID 5
 		academicDetails.setStudStatus(defaultStatus);
 
 		StudentAcademicDetails savedAcademicDetails = studentAcademicDetailsRepository.save(academicDetails);
