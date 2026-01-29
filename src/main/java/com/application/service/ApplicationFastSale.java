@@ -696,6 +696,7 @@ public class ApplicationFastSale {
 			districtRepository.findById(formData.getPreCollegeDistrictId()).ifPresent(academicDetails::setDistrict2);
 		}
 		academicDetails.setCreated_by(formData.getCreatedBy());
+		academicDetails.setCreated_date(LocalDateTime.now());
 		academicDetails.setEmployee(pro);
 
 		// Defaults/Status Update
