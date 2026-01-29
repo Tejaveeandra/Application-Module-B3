@@ -1,5 +1,6 @@
 package com.application.entity;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
@@ -17,7 +18,10 @@ import lombok.NoArgsConstructor;
 public class SubStream {
 	
 	@Id
+	@Column(name = "sub_stream_id")
 	private int sub_stream_id;
+	
+	@Column(name = "sub_stream_name")
 	private String sub_stream;
 	
 	@ManyToOne
