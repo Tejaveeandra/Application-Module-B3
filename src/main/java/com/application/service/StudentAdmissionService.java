@@ -886,6 +886,9 @@ public class StudentAdmissionService {
 
         academicDetails.setCreated_by(formData.getCreatedBy());
         academicDetails.setEmployee(pro);
+        
+        // Set created_date for new record
+        academicDetails.setCreated_date(LocalDateTime.now());
 
         // --- FIX 1 (from previous step) ---
         StudyType defaultStudyType = studyTypeRepo.findById(1)
