@@ -551,11 +551,16 @@ public class ApplicationDamagedService {
             }
 
             // Allowed to damage → Updating existing record
+            if (dto.getUpdatedBy() != null) {
+                appStatus.setUpdated_by(dto.getUpdatedBy());
+            }
         } else {
             // Create a new damage record
             appStatus = new AppStatus();
             appStatus.setApp_no(dto.getApplicationNo());
-            appStatus.setCreated_by(2);
+            if (dto.getCreatedBy() != null) {
+                appStatus.setCreated_by(dto.getCreatedBy());
+            }
         }
 
         // 3️⃣ Fetch reference objects

@@ -16,4 +16,6 @@ public class ApplicationDamagedDto {
     private Integer proId;
     private Integer zoneId;
     private Integer dgmEmpId;
+    private Integer createdBy;
+    private Integer updatedBy;
 }
