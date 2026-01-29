@@ -917,6 +917,7 @@ public class StudentAdmissionService {
         // --- 3. Save Student Orientation Details ---
         StudentOrientationDetails orientationDetails = new StudentOrientationDetails();
         orientationDetails.setStudentAcademicDetails(savedAcademicDetails);
+        orientationDetails.setIs_active(1); // Set is_active = 1
         if (formData.getOrientationId() != null)
             orientationRepo.findById(formData.getOrientationId()).ifPresent(orientationDetails::setOrientation);
         if (formData.getClassId() != null && formData.getClassId() > 0) {
@@ -1189,6 +1190,11 @@ public class StudentAdmissionService {
         academicDetails.setCreated_by(formData.getCreatedBy());
         academicDetails.setEmployee(pro);
 
+        // Set created_date if it's a new record (stud_adms_id is 0 or null)
+        if (academicDetails.getStud_adms_id() == 0 || academicDetails.getCreated_date() == null) {
+            academicDetails.setCreated_date(LocalDateTime.now());
+        }
+
         // --- FIX 1 (from previous step) ---
         StudyType defaultStudyType = studyTypeRepo.findById(1)
                 .orElseThrow(() -> new EntityNotFoundException("Default StudyType (ID: 1) not found"));
@@ -1219,6 +1225,7 @@ public class StudentAdmissionService {
                 .orElse(new StudentOrientationDetails());
 
         orientationDetails.setStudentAcademicDetails(savedAcademicDetails);
+        orientationDetails.setIs_active(1); // Set is_active = 1
         if (formData.getOrientationId() != null)
             orientationRepo.findById(formData.getOrientationId()).ifPresent(orientationDetails::setOrientation);
         if (formData.getClassId() != null && formData.getClassId() > 0) {
@@ -1533,6 +1540,7 @@ public class StudentAdmissionService {
                 .orElse(new StudentOrientationDetails());
 
         orientationDetails.setStudentAcademicDetails(academicDetails);
+        orientationDetails.setIs_active(1); // Set is_active = 1
 
         if (saleDTO.getOrientationId() != null)
             orientationDetails.setOrientation(orientationRepo.findById(saleDTO.getOrientationId())
