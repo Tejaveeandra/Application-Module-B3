@@ -1891,7 +1891,7 @@ public class ApplicationFastSale {
 
 		// City & Course mapping... (Placeholders)
 
-		Status defaultStatus = statusRepository.findById(5)
+		Status defaultStatus = statusRepository.findById(1)
 				.orElseThrow(() -> new EntityNotFoundException("Default Status (ID: 5) not found"));
 		academicDetails.setStatus(defaultStatus);
 
@@ -1911,40 +1911,40 @@ public class ApplicationFastSale {
 		// Set Section
 		if (formData.getSectionId() != null) {
 			sectionRepository.findById(formData.getSectionId())
-				.ifPresent(studOrientationDetails::setSection);
+					.ifPresent(studOrientationDetails::setSection);
 		}
-		
+
 		// Set Stream
 		if (formData.getStreamId() != null) {
 			streamRepository.findById(formData.getStreamId())
-				.ifPresent(studOrientationDetails::setStream);
+					.ifPresent(studOrientationDetails::setStream);
 		}
-		
+
 		// Set Program (only if status = 1, which means active)
 		if (formData.getProgramId() != null) {
 			programNameRepository.findById(formData.getProgramId())
-				.filter(program -> program.getStatus() == null || program.getStatus() == 1)
-				.ifPresent(studOrientationDetails::setProgramName);
+					.filter(program -> program.getStatus() == null || program.getStatus() == 1)
+					.ifPresent(studOrientationDetails::setProgramName);
 		}
-		
+
 		// Set Exam Program (only if status = 1, which means active)
 		if (formData.getExamProgramId() != null) {
 			examProgramRepository.findById(formData.getExamProgramId())
-				.filter(exam -> exam.getStatus() == null || exam.getStatus() == 1)
-				.ifPresent(studOrientationDetails::setExamProgram);
+					.filter(exam -> exam.getStatus() == null || exam.getStatus() == 1)
+					.ifPresent(studOrientationDetails::setExamProgram);
 		}
-		
+
 		// Set Sub Stream
 		if (formData.getSubStreamId() != null) {
 			subStreamRepository.findById(formData.getSubStreamId())
-				.ifPresent(studOrientationDetails::setSubStream);
+					.ifPresent(studOrientationDetails::setSubStream);
 		}
-		
+
 		// Set Sub Program (only if status = 1, which means active)
 		if (formData.getSubProgramId() != null) {
 			subProgramRepository.findById(formData.getSubProgramId())
-				.filter(subProgram -> subProgram.getStatus() == 1)
-				.ifPresent(studOrientationDetails::setSubProgram);
+					.filter(subProgram -> subProgram.getStatus() == 1)
+					.ifPresent(studOrientationDetails::setSubProgram);
 		}
 
 		studentOrientationDetailsRepository.save(studOrientationDetails);
