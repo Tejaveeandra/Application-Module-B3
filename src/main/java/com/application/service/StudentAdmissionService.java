@@ -54,6 +54,8 @@ import com.application.entity.StudentOrientationDetails;
 import com.application.entity.StudentPersonalDetails;
 import com.application.entity.StudentRelation;
 import com.application.entity.StudentType;
+import com.application.entity.SctOrientation;
+import com.application.repository.SctOrientationRepository;
 import com.application.entity.StudyType;
 import com.application.entity.Zone;
 import com.application.repository.AcademicYearRepository;
@@ -1592,6 +1594,21 @@ public class StudentAdmissionService {
                         s.getSchool_id(),
                         s.getSchool_name()))
                 .toList();
+    }
+
+    @Autowired
+    private SctOrientationRepository sctOrientationRepository;
+
+    public List<GenericDropdownDTO> getSectionsByOrientationId(int orientationId) {
+        List<SctOrientation> list = sctOrientationRepository.findByCmpsOrientationId(orientationId);
+        return list.stream().map(sct -> {
+            GenericDropdownDTO dto = new GenericDropdownDTO();
+            if (sct.getSection() != null) {
+                dto.setId(sct.getSection().getSection_id());
+                dto.setName(sct.getSection().getSectionName());
+            }
+            return dto;
+        }).filter(dto -> dto.getId() != null).collect(Collectors.toList());
     }
 
     public List<GenericDropdownDTO> getColleges(int districtId, int collegeTypeId) {

@@ -178,6 +178,12 @@ public class StudentAdmissionController {
         }
     }
 
+    @GetMapping("/sections-by-orientation/{orientationId}")
+    public ResponseEntity<List<GenericDropdownDTO>> getSectionsByOrientationId(@PathVariable int orientationId) {
+        List<GenericDropdownDTO> sections = studentAdmissionService.getSectionsByOrientationId(orientationId);
+        return ResponseEntity.ok(sections);
+    }
+
     @GetMapping("/branches/{orgId}/{bankId}") // used/c
     public List<GenericDropdownDTO> getBranchesByOrganizationAndBank(
             @PathVariable int orgId,
