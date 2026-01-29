@@ -1938,10 +1938,9 @@ public class ApplicationFastSale {
 					.ifPresent(studOrientationDetails::setProgramName);
 		}
 
-		// Set Exam Program (only if status = 1, which means active)
+		// Set Exam Program
 		if (formData.getExamProgramId() != null) {
 			examProgramRepository.findById(formData.getExamProgramId())
-					.filter(exam -> exam.getStatus() == null || exam.getStatus() == 1)
 					.ifPresent(studOrientationDetails::setExamProgram);
 		}
 
